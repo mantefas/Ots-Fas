@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Órdenes de Trabajo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body { min-height:100vh; background:#0F172A; font-family:'Inter',system-ui,sans-serif; color:#E2E8F0; }
+.header { background:linear-gradient(135deg,#1E293B,#0F172A); border-bottom:1px solid #1E293B; padding:18px 28px; display:flex; align-items:center; gap:14px; }
+.header-title { font-weight:700; font-size:17px; }
+.header-sub { font-size:12px; color:#64748B; }
+.header-date { margin-left:auto; font-size:12px; color:#7C4A2A; font-weight:600; }
+.sync-dot { width:8px; height:8px; border-radius:50%; background:#334155; margin-left:10px; transition:background 0.3s; flex-shrink:0; }
+.layout { display:flex; min-height:calc(100vh - 77px); }
+.sidebar { display:none; }
+.sidebar-label { font-size:11px; font-weight:600; color:#7C4A2A; letter-spacing:0.08em; margin-bottom:10px; padding-left:8px; }
+.tec-btn { width:100%; background:transparent; border:1px solid transparent; border-radius:10px; padding:10px 12px; cursor:pointer; text-align:left; margin-bottom:4px; color:#CBD5E1; }
+.tec-btn:hover { background:#1E293B; }
+.tec-btn.active { background:#1E3A5F; border-color:rgba(37,99,235,0.25); color:#93C5FD; }
+.tec-row { display:flex; justify-content:space-between; margin-bottom:5px; }
+.tec-name { font-size:13px; }
+.tec-btn.active .tec-name { font-weight:600; }
+.tec-count { font-size:11px; color:#64748B; }
+.tec-count.done { color:#34D399; }
+.prog-track { height:3px; background:#1E293B; border-radius:99px; overflow:hidden; }
+.prog-bar { height:100%; border-radius:99px; background:#2563EB; transition:width 0.4s; }
+.prog-bar.complete { background:#34D399; }
+.main { flex:1; padding:28px 32px; overflow:auto; }
+.empty-state { text-align:center; padding-top:80px; color:#334155; }
+.empty-state .emoji { font-size:48px; margin-bottom:14px; }
+.empty-state h3 { font-size:18px; font-weight:600; }
+.tec-header { margin-bottom:22px; }
+.tec-header-top { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.tec-header h2 { font-size:22px; font-weight:700; color:#F1F5F9; }
+.tec-stats { margin-top:4px; font-size:13px; color:#64748B; }
+.stat-pend { color:#F59E0B; font-weight:600; }
+.stat-done { color:#34D399; font-weight:600; }
+.stat-completado { cursor:default; user-select:none; }
+.ring-wrap { position:relative; width:56px; height:56px; flex-shrink:0; }
+.ring-wrap svg { transform:rotate(-90deg); }
+.ring-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#94A3B8; }
+.dept-filters { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+.dept-btn { padding:4px 12px; border-radius:99px; border:1px solid #1E293B; background:transparent; color:#475569; font-size:12px; font-weight:500; cursor:pointer; }
+.orders { display:flex; flex-direction:column; gap:10px; }
+.card { background:#1E293B; border:1px solid #334155; border-radius:12px; padding:15px 18px; display:flex; gap:14px; align-items:flex-start; transition:all 0.3s; }
+.card.listo { background:#0D1F0D; border-color:#166534; opacity:0.72; }
+.ot-num { flex-shrink:0; width:50px; text-align:center; }
+.ot-label { font-size:10px; color:#475569; margin-bottom:2px; }
+.ot-id { font-size:15px; font-weight:700; color:#F59E0B; }
+.card.listo .ot-id { color:#4ADE80; }
+.divider { width:1px; background:#334155; align-self:stretch; flex-shrink:0; }
+.card-body { flex:1; min-width:0; }
+.card-title-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
+.card-title { font-size:14px; font-weight:600; color:#E2E8F0; }
+.card.listo .card-title { color:#86EFAC; }
+.dept-tag { font-size:10px; font-weight:600; padding:2px 8px; border-radius:99px; border:1px solid; white-space:nowrap; }
+.card-desc { font-size:13px; color:#94A3B8; margin-bottom:6px; line-height:1.45; }
+.card-meta { display:flex; gap:14px; font-size:11px; color:#475569; flex-wrap:wrap; }
+.meta-done { color:#34D399; }
+.btn-listo { padding:8px 14px; background:linear-gradient(135deg,#15803D,#166534); border:1px solid #166534; border-radius:8px; color:#86EFAC; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0; }
+.btn-deshacer { padding:8px 14px; background:transparent; border:1px solid #334155; border-radius:8px; color:#475569; font-size:12px; cursor:pointer; white-space:nowrap; flex-shrink:0; }
+.no-orders { color:#475569; text-align:center; padding-top:40px; }
+.toast { position:fixed; bottom:24px; right:24px; background:#1E293B; border:1px solid #334155; border-radius:10px; padding:12px 18px; font-size:13px; color:#E2E8F0; box-shadow:0 8px 32px rgba(0,0,0,0.4); transform:translateY(80px); opacity:0; transition:all 0.3s; z-index:998; }
+.toast.show { transform:translateY(0); opacity:1; }
+.toast.success { border-color:#166534; color:#86EFAC; }
+.toast.error { border-color:#991B1B; color:#FCA5A5; }
+.toast.info { border-color:#1D4ED8; color:#93C5FD; }
+/* Modal Historial */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center; padding:16px; }
+.modal-overlay.open { display:flex; }
+.modal { background:#1E293B; border:1px solid #334155; border-radius:16px; width:100%; max-width:820px; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; }
+.modal-header { padding:18px 24px; border-bottom:1px solid #334155; display:flex; align-items:center; justify-content:space-between; }
+.modal-title { font-size:15px; font-weight:700; color:#F1F5F9; }
+.modal-sub { font-size:12px; color:#64748B; margin-top:2px; }
+.modal-close { background:transparent; border:1px solid #334155; border-radius:6px; color:#475569; font-size:16px; cursor:pointer; padding:4px 10px; }
+.modal-close:hover { border-color:#EF4444; color:#EF4444; }
+.modal-filters { padding:10px 24px; border-bottom:1px solid #1E293B; display:flex; gap:8px; flex-wrap:wrap; }
+.modal-body { overflow-y:auto; padding:16px 24px; flex:1; }
+.hist-card { background:#0F172A; border:1px solid #1E293B; border-radius:10px; padding:12px 16px; margin-bottom:8px; display:flex; gap:12px; align-items:flex-start; }
+.hist-id { font-size:14px; font-weight:700; color:#34D399; width:44px; flex-shrink:0; text-align:center; }
+.hist-id-label { font-size:9px; color:#475569; }
+.hist-body { flex:1; min-width:0; }
+.hist-title { font-size:13px; font-weight:600; color:#86EFAC; margin-bottom:3px; }
+.hist-desc { font-size:12px; color:#64748B; margin-bottom:5px; line-height:1.4; }
+.hist-meta { font-size:11px; color:#475569; display:flex; gap:12px; flex-wrap:wrap; }
+.hist-done { color:#34D399; }
+.no-hist { color:#475569; text-align:center; padding:40px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div style="width:48px;height:48px;border-radius:8px;overflow:hidden;flex-shrink:0;">
+    <img src="data:image/jpeg;base64,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" style="width:100%;height:100%;object-fit:cover;" alt="FAS"/>
+  </div>
+  <div>
+    <div class="header-title">Órdenes de Trabajo · <span onclick="document.getElementById('fileExcel').click()" style="cursor:default;user-select:none;">FAS</span></div>
+    <div class="header-sub" id="totalInfo"></div>
+  </div>
+  <div class="header-date" id="fechaHoy"></div>
+  <div class="sync-dot" id="syncDot"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-label">TÉCNICOS</div>
+    <div id="tecList"></div>
+  </div>
+  <div class="main" id="mainArea">
+    <div class="empty-state">
+      <div class="emoji">👈</div>
+      <h3>Seleccioná un técnico</h3>
+      <p style="font-size:14px;margin-top:4px;">para ver sus órdenes pendientes</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalHistorial" onclick="cerrarHistorial()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">📋 Historial completadas</div>
+        <div class="modal-sub" id="modalTecNombre"></div>
+      </div>
+      <button class="modal-close" onclick="cerrarHistorial()">✕</button>
+    </div>
+    <div class="modal-filters" id="modalFiltros"></div>
+    <div class="modal-body" id="modalBody"><div class="no-hist">Cargando...</div></div>
+  </div>
+</div>
+
+<script>
+const JSONBIN_KEY      = "$2a$10$eJck0zTS1rwpBlWutmbbq.13sB7.VEDBUIPUxx.BF2LEMunYHFnzi";
+const JSONBIN_ID       = "6a5e87aada38895dfe780759";
+const JSONBIN_ID_HIST  = "6a5fe34ff5f4af5e29ae477b";
+const URL_MAIN         = "https://api.jsonbin.io/v3/b/" + JSONBIN_ID;
+const URL_HIST         = "https://api.jsonbin.io/v3/b/" + JSONBIN_ID_HIST;
+const HEADERS_READ     = {"X-Master-Key": JSONBIN_KEY};
+const HEADERS_WRITE    = {"Content-Type":"application/json","X-Master-Key":JSONBIN_KEY};
+
+const BASE_ORDERS = [
+  {id:2032,activo:"Fosforescente quemado",desc:"Fosforescente quemado en el chiller 1",tec:"Aylin Bejarano",depto:"COCINA",fecha:"29-06-2026 14:05",sol:"Cocina FASCR"},
+  {id:1992,activo:"9 luces del mesanini",desc:"9 luces del mesanini no sirven",tec:"Aylin Bejarano",depto:"BodegaMP",fecha:"17-06-2026 11:29",sol:"Carlos Castillo"},
+  {id:2112,activo:"Toma corrientes bodega",desc:"Toma corrientes general de la bodega rotos y sin tapas",tec:"Aylin Bejarano",depto:"BodegaMP",fecha:"16-07-2026 10:39",sol:"Carlos Castillo"},
+  {id:2110,activo:"Luz del pasillo MP",desc:"La luz del pasillo de la entrada de MP no sirve",tec:"Aylin Bejarano",depto:"BodegaMP",fecha:"16-07-2026 10:37",sol:"Carlos Castillo"},
+  {id:2102,activo:"Florescente quemado",desc:"Quemado",tec:"Aylin Bejarano",depto:"LOGISTICA",fecha:"14-07-2026 11:08",sol:"Vianney Mendoza"},
+  {id:2101,activo:"Florescentes quemados",desc:"Quemados",tec:"Aylin Bejarano",depto:"LOGISTICA",fecha:"14-07-2026 11:07",sol:"Vianney Mendoza"},
+  {id:2100,activo:"Florescentes quemados",desc:"Quemados",tec:"Aylin Bejarano",depto:"LOGISTICA",fecha:"14-07-2026 10:59",sol:"Vianney Mendoza"},
+  {id:1661,activo:"Carretillas de piso",desc:"Hacer carretillas de piso (pequeñas)",tec:"Jordy Martinez",depto:"BodegaPT",fecha:"16-03-2026 15:01",sol:"Jousthyn QL"},
+  {id:1869,activo:"Carrito en acero",desc:"Crear carrito con llantas igual al del area de tres leches",tec:"Jordy Martinez",depto:"POSTRES",fecha:"19-05-2026 15:48",sol:"Priscilla AC"},
+  {id:2035,activo:"Agarradera al colador",desc:"Poner agarradera al colador",tec:"Jordy Martinez",depto:"COCINA",fecha:"30-06-2026 06:50",sol:"Cocina FASCR"},
+  {id:2033,activo:"Coche muy flojo",desc:"Asegurar coche ya que esta muy flojo",tec:"Jordy Martinez",depto:"POSTRES",fecha:"29-06-2026 17:05",sol:"Priscilla AC"},
+  {id:2030,activo:"Ruedas a mesas cocina fria",desc:"Poner ruedas a mesas en cocina fria",tec:"Jordy Martinez",depto:"COCINA",fecha:"29-06-2026 13:43",sol:"Cocina FASCR"},
+  {id:2024,activo:"Escurridor de utensilios",desc:"Escurridor de utensilios despintado",tec:"Jordy Martinez",depto:"POSTRES",fecha:"27-06-2026 11:32",sol:"Postres FASCR"},
+  {id:2017,activo:"Mesa para balanzas altas",desc:"Hacer mesa para balanzas altas",tec:"Jordy Martinez",depto:"COCINA",fecha:"25-06-2026 14:39",sol:"Cocina FASCR"},
+  {id:2016,activo:"Mesa para balanzas",desc:"Hacer mesa para balanzas",tec:"Jordy Martinez",depto:"COCINA",fecha:"25-06-2026 14:36",sol:"Cocina FASCR"},
+  {id:2006,activo:"Mesa acero balanzas",desc:"Mesa de acero para balanzas altas",tec:"Jordy Martinez",depto:"COCINA",fecha:"22-06-2026 15:20",sol:"Cocina FASCR"},
+  {id:1998,activo:"Solicitud de mesas",desc:"Solicitud de mesas para balanzas en cocina",tec:"Jordy Martinez",depto:"COCINA",fecha:"19-06-2026 10:27",sol:"Cocina FASCR"},
+  {id:1981,activo:"Respaldar a mesa",desc:"Poner respaldar a mesa de empaque",tec:"Jordy Martinez",depto:"COCINA",fecha:"16-06-2026 10:44",sol:"Cocina FASCR"},
+  {id:1956,activo:"15 carretillas empaque",desc:"Ayudar con 15 carretillas para el area de empaque",tec:"Jordy Martinez",depto:"COCINA",fecha:"09-06-2026 09:48",sol:"Cocina FASCR"},
+  {id:1789,activo:"Lampara UV danada",desc:"Reparacion de lampara de luz ultra violeta",tec:"Josabath Aguilera",depto:"BATIDOS",fecha:"28-04-2026 10:28",sol:"Alex Mondragon"},
+  {id:1780,activo:"Tomacorriente selladora",desc:"Habilitar tomacorriente para selladora en tres leches",tec:"Josabath Aguilera",depto:"POSTRES",fecha:"27-04-2026 11:37",sol:"Priscilla"},
+  {id:1836,activo:"Basurero de figuras",desc:"Basurero de figuras, pedal danado",tec:"Josabath Aguilera",depto:"DECORACION",fecha:"11-05-2026 13:24",sol:"Decoracion"},
+  {id:1814,activo:"Llaves piletas empaque",desc:"Cambiar las llaves de las piletas de empaque",tec:"Josabath Aguilera",depto:"COCINA",fecha:"06-05-2026 09:52",sol:"Cocina FASCR"},
+  {id:1960,activo:"Tomacorriente danado",desc:"Tomacorriente esta danado",tec:"Josabath Aguilera",depto:"PILAS",fecha:"09-06-2026 16:26",sol:"Hettel"},
+  {id:1941,activo:"Puerta precamara",desc:"Puerta de la precamara con empaque en mal estado",tec:"Josabath Aguilera",depto:"BodegaPT",fecha:"05-06-2026 05:46",sol:"Jousthyn QL"},
+  {id:2108,activo:"Cortina cuarto N1",desc:"Se desprendio una cortina del cuarto N1",tec:"Josabath Aguilera",depto:"BodegaMP",fecha:"16-07-2026 10:33",sol:"Carlos Castillo"},
+  {id:2083,activo:"Cortinas plasticas ingreso",desc:"Revisar y reemplazar cortinas plasticas deterioradas",tec:"Josabath Aguilera",depto:"MANTENIMIENTO",fecha:"09-07-2026 11:19",sol:"Jean Carlo"},
+  {id:2073,activo:"Pedal basurero crudo",desc:"Pedal del basurero del crudo malo",tec:"Josabath Aguilera",depto:"COCINA",fecha:"08-07-2026 06:26",sol:"Cocina FASCR"},
+  {id:2062,activo:"Pila de cocina",desc:"Reparar los huecos que tiene la pila de cocina",tec:"Josabath Aguilera",depto:"COMEDOR",fecha:"04-07-2026 11:20",sol:"Comedor FASCR"},
+  {id:2058,activo:"Campana extraccion grasa",desc:"Realizar reparacion ya que no extrae y todo esta lleno de grasa",tec:"Josabath Aguilera",depto:"COMEDOR",fecha:"04-07-2026 10:57",sol:"Comedor FASCR"},
+  {id:2056,activo:"Horno goteando",desc:"Horno esta goteando",tec:"Josabath Aguilera",depto:"COCINA",fecha:"03-07-2026 15:51",sol:"Cocina FASCR"},
+  {id:1907,activo:"Camara SS 2 puertas deco",desc:"Camara: parrilla suelta, rejilla descarapelada, cambiar empaque",tec:"Khendall Aguero",depto:"DECORACION",fecha:"28-05-2026 17:00",sol:"Jacqueline"},
+  {id:1873,activo:"Rack cuarto U",desc:"Subir un rack en el cuarto U",tec:"Khendall Aguero",depto:"BodegaPT",fecha:"20-05-2026 17:15",sol:"JQL"},
+  {id:2075,activo:"Fluorescentes cuarto P",desc:"Fluorescentes en mal estado del cuarto P y precamara",tec:"Khendall Aguero",depto:"BodegaPT",fecha:"08-07-2026 10:43",sol:"Jeffry Vega BPT"},
+  {id:2064,activo:"Fluorescente quemado",desc:"Fluorescente quemado",tec:"Khendall Aguero",depto:"POSTRES",fecha:"06-07-2026 06:37",sol:"Priscilla AC"},
+  {id:2060,activo:"Freidor comedor",desc:"Revisar, reparar y limpiar el freidor",tec:"Khendall Aguero",depto:"COMEDOR",fecha:"04-07-2026 11:04",sol:"Comedor FASCR"},
+  {id:2057,activo:"Bano maria electrico",desc:"Cambiar resistencia del bano maria electrico del comedor",tec:"Khendall Aguero",depto:"COMEDOR",fecha:"04-07-2026 10:55",sol:"Comedor FASCR"},
+  {id:1982,activo:"Repisa al detector",desc:"Poner repisa a detector",tec:"Roy Romero",depto:"COCINA",fecha:"16-06-2026 10:45",sol:"Cocina FASCR"},
+  {id:1918,activo:"Etiqueta procesador",desc:"Etiqueta de seguridad del procesador de alimentos se esta desprendiendo",tec:"Roy Romero",depto:"DECORACION",fecha:"02-06-2026 06:00",sol:"Jaqueline"},
+  {id:2080,activo:"Espatula rieles",desc:"Fabricar espatula para deslizar por los rieles de contenedores",tec:"Roy Romero",depto:"LOGISTICA",fecha:"09-07-2026 11:01",sol:"Gustavo"},
+  {id:2077,activo:"Altura mesas lavado",desc:"Aumentar altura de mesas de lavado (Ergonomia S.O.)",tec:"Roy Romero",depto:"PILAS",fecha:"09-07-2026 10:55",sol:"Hettel"},
+  {id:2070,activo:"Cocina 4 quemadores",desc:"Cocina de 4 quemadores se le desprendio una barrilla",tec:"Roy Romero",depto:"COCINA",fecha:"07-07-2026 06:37",sol:"Cocina FASCR"},
+  {id:2068,activo:"Bancas alistadores",desc:"Calzas para las bancas de los alistadores",tec:"Roy Romero",depto:"BodegaPT",fecha:"06-07-2026 16:54",sol:"Jousthyn Quesada L"},
+  {id:2063,activo:"Llantas de coche",desc:"Reparar llantas de coche",tec:"Roy Romero",depto:"POSTRES",fecha:"04-07-2026 11:53",sol:"Priscilla AC"},
+  {id:1908,activo:"Cortinas termoplasticas",desc:"Cortinas termoplasticas de los cuartos en mal estado",tec:"Stifen Mora",depto:"BodegaPT",fecha:"28-05-2026 18:06",sol:"Jousthyn Quesada L"},
+  {id:2031,activo:"Basurero mal estado",desc:"Basurero en mal estado en cocina caliente",tec:"Stifen Mora",depto:"COCINA",fecha:"29-06-2026 13:44",sol:"Cocina FASCR"},
+  {id:1715,activo:"Cuarto frio de pollo",desc:"Pared de cuarto de pollo de planta con hueco",tec:"Wilberh Rivas",depto:"BodegaMP",fecha:"31-03-2026 13:54",sol:"Brandon Quiros"},
+  {id:1685,activo:"Rack con herrumbre",desc:"Mueble estante de la jaula donde se colocan bolsas presenta herrumbre",tec:"Wilberh Rivas",depto:"BodegaPT",fecha:"24-03-2026 09:07",sol:"Luis Carlos BMP"},
+  {id:1904,activo:"Fuga tubos anden BPT",desc:"Fuga en los tubos bajantes del anden en BPT",tec:"Wilberh Rivas",depto:"BodegaPT",fecha:"28-05-2026 15:44",sol:"Jousthyn QL"},
+  {id:1900,activo:"Estantes rotos rack MP",desc:"Cambiar estantes rotos y de madera de los racks de MP",tec:"Wilberh Rivas",depto:"BodegaMP",fecha:"28-05-2026 10:28",sol:"Carlos Castillo"},
+  {id:1831,activo:"Grietas chiller 2",desc:"Sellar grietas del chiller 2",tec:"Wilberh Rivas",depto:"COCINA",fecha:"11-05-2026 05:45",sol:"Cocina FASCR"},
+  {id:1821,activo:"Gotera area cocina",desc:"Reparar gotera en el area de cocina por las camaras",tec:"Wilberh Rivas",depto:"COMEDOR",fecha:"06-05-2026 18:12",sol:"Comedor FASCR"},
+  {id:2002,activo:"Cuadro de pared quebrado",desc:"Cambio cuadro de la pared (podrida)",tec:"Wilberh Rivas",depto:"ETIQUETAS",fecha:"22-06-2026 05:57",sol:"Andres Rojas Campos"},
+  {id:1975,activo:"Tapa de drenaje MP",desc:"Tapa de drenaje despegada en MP",tec:"Wilberh Rivas",depto:"BodegaMP",fecha:"12-06-2026 09:25",sol:"Carlos Castillo"},
+  {id:1963,activo:"Pared cuarto desinfeccion BMP",desc:"Pared con hueco en cuarto de desinfeccion BMP",tec:"Wilberh Rivas",depto:"BodegaMP",fecha:"10-06-2026 06:47",sol:"Carlos Castillo"},
+  {id:1951,activo:"Pared de quimicos",desc:"Arreglar la pared donde estan los quimicos",tec:"Wilberh Rivas",depto:"SANIDAD",fecha:"08-06-2026 16:40",sol:"Hettel"},
+  {id:1943,activo:"Borde entrada precamara",desc:"Borde en la entrada por dentro de la precamara en muy mal estado",tec:"Wilberh Rivas",depto:"BodegaPT",fecha:"05-06-2026 05:54",sol:"Jousthyn QL"},
+  {id:1940,activo:"Puerta ingreso BPT",desc:"Puerta ingreso BPT en mal estado",tec:"Wilberh Rivas",depto:"BodegaPT",fecha:"05-06-2026 05:45",sol:"Jousthyn QL"},
+  {id:1933,activo:"Gotera en hornos",desc:"Gotera cae sobre area donde se pone el producto que esta pronto a entrar a hornos",tec:"Wilberh Rivas",depto:"BATIDOS",fecha:"03-06-2026 12:32",sol:"Alex Mondragon"},
+  {id:2054,activo:"Goteras cielo raso nuevo",desc:"Goteras en el cielo raso area nueva",tec:"Wilberh Rivas",depto:"POSTRES",fecha:"03-07-2026 15:00",sol:"Priscilla AC"},
+];
+
+const DEPT_COLORS = {
+  COCINA:"#F59E0B",BodegaMP:"#3B82F6",BodegaPT:"#8B5CF6",POSTRES:"#EC4899",
+  LOGISTICA:"#14B8A6",COMEDOR:"#F97316",DECORACION:"#A78BFA",BATIDOS:"#22D3EE",
+  PILAS:"#84CC16",MANTENIMIENTO:"#6B7280",ETIQUETAS:"#FB923C",SANIDAD:"#34D399"
+};
+function dc(d){ return DEPT_COLORS[d]||"#6B7280"; }
+
+let ORDERS = [...BASE_ORDERS];
+let completadas = {};
+let TECNICOS = [];
+let tecActivo = null;
+let deptoActivo = "TODOS";
+let lastHash = "";
+let syncTimer = null;
+let histFiltro = "TODOS";
+
+function refreshTecnicos(){ TECNICOS=[...new Set(ORDERS.map(o=>o.tec))].sort(); }
+refreshTecnicos();
+
+// ── Storage helpers ─────────────────────────────────────
+function setSyncDot(s){
+  const d=document.getElementById("syncDot");
+  if(!d) return;
+  d.style.background = s==="syncing"?"#F59E0B":s==="ok"?"#34D399":"#334155";
+  if(s==="ok") setTimeout(()=>setSyncDot("idle"),2000);
+}
+
+function showToast(msg,type="success"){
+  const t=document.getElementById("toast");
+  t.textContent=msg; t.className="toast "+type+" show";
+  setTimeout(()=>{ t.className="toast"; },3500);
+}
+
+// ── JSONBin API ─────────────────────────────────────────
+async function apiGet(url){ const r=await fetch(url+"/latest",{headers:HEADERS_READ}); if(!r.ok) throw new Error(r.status); return (await r.json()).record; }
+async function apiPut(url,data){ const r=await fetch(url,{method:"PUT",headers:HEADERS_WRITE,body:JSON.stringify(data)}); if(!r.ok) throw new Error(r.status); }
+
+// ── Sync main data ──────────────────────────────────────
+async function pullFromCloud(){
+  try {
+    const data = await apiGet(URL_MAIN);
+    const incoming = JSON.stringify(data);
+    if(incoming===lastHash) return;
+    lastHash=incoming;
+    if(data.orders&&data.orders.length){ ORDERS=data.orders.filter(function(o){ return o.tec==="Wilberh Rivas"; }); refreshTecnicos(); updateHeader(); }
+    if(data.completadas) completadas=data.completadas;
+    renderSidebar();
+    if(tecActivo) renderMain();
+  } catch(_){}
+}
+
+async function pushToCloud(){
+  setSyncDot("syncing");
+  try {
+    const current=await apiGet(URL_MAIN);
+    const payload={orders:current.orders||[],completadas:current.completadas||{}};
+    // Obtener IDs de ordenes de Wilber
+    const wilberIds=new Set((current.orders||[]).filter(function(o){ return o.tec==="Wilberh Rivas"; }).map(function(o){ return String(o.id); }));
+    // Eliminar del payload las completadas de Wilber que ya no estan en local
+    wilberIds.forEach(function(k){ delete payload.completadas[k]; });
+    // Agregar solo las que Wilber tiene actualmente como listas
+    Object.keys(completadas).forEach(function(k){ payload.completadas[k]=completadas[k]; });
+    lastHash=JSON.stringify(payload);
+    await apiPut(URL_MAIN,payload);
+    setSyncDot("ok");
+  } catch(_){ setSyncDot("idle"); }
+}
+
+function schedulePush(){ clearTimeout(syncTimer); syncTimer=setTimeout(pushToCloud,800); }
+setInterval(()=>pullFromCloud(),10000);
+
+// ── Historial API ───────────────────────────────────────
+async function getHistorial(){ try{ const d=await apiGet(URL_HIST); return d.historial||[]; }catch(_){ return []; } }
+async function saveHistorial(hist){ try{ await apiPut(URL_HIST,{historial:hist}); }catch(_){} }
+
+async function archivarOrden(orden,fechaComp){
+  const hist = await getHistorial();
+  if(hist.find(h=>h.id===orden.id)) return; // ya existe
+  hist.unshift({id:orden.id,activo:orden.activo,desc:orden.desc,tec:orden.tec,depto:orden.depto,fecha:orden.fecha,sol:orden.sol,completadoEn:fechaComp});
+  await saveHistorial(hist);
+}
+
+async function desarchivarOrden(id){
+  const hist = await getHistorial();
+  await saveHistorial(hist.filter(h=>h.id!==id));
+}
+
+// ── Marcar / Desmarcar ──────────────────────────────────
+async function marcar(id){
+  const fecha=new Date().toLocaleString("es-CR");
+  completadas[id]=fecha;
+  renderSidebar(); renderMain(); schedulePush();
+  // Buscar orden en ORDERS o en BASE_ORDERS filtrado
+  var orden=ORDERS.find(function(o){ return o.id===id; });
+  if(!orden){
+    // Intentar obtener desde cloud
+    try {
+      const cloudData=await apiGet(URL_MAIN);
+      if(cloudData.orders) orden=(cloudData.orders||[]).find(function(o){ return o.id===id; });
+    } catch(_){}
+  }
+  if(orden){
+    archivarOrden(orden,fecha);
+  }
+}
+
+async function desmarcar(id){
+  delete completadas[id];
+  renderSidebar(); renderMain(); schedulePush();
+  desarchivarOrden(id);
+}
+
+// ── Header ──────────────────────────────────────────────
+document.getElementById("fechaHoy").textContent=
+  new Date().toLocaleDateString("es-CR",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+
+function updateHeader(){
+  document.getElementById("totalInfo").textContent=
+    "Wilberh Rivas";
+}
+updateHeader();
+
+// ── Render Sidebar ──────────────────────────────────────
+function renderSidebar(){
+  document.getElementById("tecList").innerHTML=TECNICOS.map(t=>{
+    const ots=ORDERS.filter(o=>o.tec===t);
+    const done=ots.filter(o=>completadas[o.id]).length;
+    const total=ots.length;
+    const pct=total?Math.round((done/total)*100):0;
+    const act=tecActivo===t;
+    return "<button class=\"tec-btn"+(act?" active":"")+"\" onclick=\"selectTec('"+t.replace(/'/g,"\\'")+"')\">"
+      +"<div class=\"tec-row\"><span class=\"tec-name\">"+t.split(" ")[0]+"</span>"
+      +"<span class=\"tec-count"+(done===total?" done":"")+"\">"+(done)+"/"+total+"</span></div>"
+      +"<div class=\"prog-track\"><div class=\"prog-bar"+(done===total?" complete":"")+"\" style=\"width:"+pct+"%\"></div></div>"
+      +"</button>";
+  }).join("");
+}
+
+// ── Render Main ─────────────────────────────────────────
+function renderMain(){
+  const el=document.getElementById("mainArea");
+  if(!tecActivo){ el.innerHTML="<div class=\"empty-state\"><div class=\"emoji\">👈</div><h3>Selecciona un tecnico</h3><p style=\"font-size:14px;margin-top:4px;\">para ver sus ordenes pendientes</p></div>"; return; }
+
+  const ots=ORDERS.filter(o=>o.tec===tecActivo);
+  const pendientes=ots.filter(o=>!completadas[o.id]);
+  const listasOts=ots.filter(o=>!!completadas[o.id]);
+  const done=listasOts.length;
+  const pend=pendientes.length;
+  const pct=ots.length?Math.round((done/ots.length)*100):0;
+  const circ=2*Math.PI*22;
+  const ringColor=pct===100?"#34D399":"#2563EB";
+  const enListas=deptoActivo==="__LISTAS__";
+
+  const deptos=["TODOS",...new Set(pendientes.map(o=>o.depto)),"__LISTAS__"];
+  const filtered=enListas?[]:deptoActivo==="TODOS"?pendientes:pendientes.filter(o=>o.depto===deptoActivo);
+
+  const deptBtns=deptos.map(function(d){
+    const esL=d==="__LISTAS__";
+    const label=esL?"Listas ("+listasOts.length+")":d;
+    const color=esL?"#34D399":d==="TODOS"?"#2563EB":dc(d);
+    const active=deptoActivo===d;
+    const style=active?"border-color:"+color+";color:"+color+";background:"+color+"18;":"";
+    return "<button class=\"dept-btn"+(active?" active-dept":"")+"\" style=\""+style+"\" onclick=\"selectDepto('"+d+"')\">"+label+"</button>";
+  }).join("");
+
+  function cardHtml(o,esListo){
+    const color=dc(o.depto);
+    const btn=esListo
+      ?"<button class=\"btn-deshacer\" onclick=\"desmarcar("+o.id+")\">Deshacer</button>"
+      :"<button class=\"btn-listo\" onclick=\"marcar("+o.id+")\">✓ Marcar listo</button>";
+    const metaDone=esListo?"<span class=\"meta-done\">✅ "+completadas[o.id]+"</span>":"";
+    return "<div class=\"card"+(esListo?" listo":"")+"\">"
+      +"<div class=\"ot-num\"><div class=\"ot-label\">OT</div><div class=\"ot-id\">"+o.id+"</div></div>"
+      +"<div class=\"divider\"></div>"
+      +"<div class=\"card-body\">"
+      +"<div class=\"card-title-row\"><span class=\"card-title\">"+(esListo?"✓ ":"")+o.activo+"</span>"
+      +"<span class=\"dept-tag\" style=\"color:"+color+";border-color:"+color+"40;background:"+color+"18\">"+o.depto+"</span></div>"
+      +"<div class=\"card-desc\">"+o.desc+"</div>"
+      +"<div class=\"card-meta\"><span>📅 "+o.fecha+"</span><span>👤 "+o.sol+"</span>"+metaDone+"</div>"
+      +"</div>"+btn+"</div>";
+  }
+
+  const cards=enListas
+    ?(listasOts.length?listasOts.map(o=>cardHtml(o,true)).join(""):"<div class=\"no-orders\">No hay ordenes listas aun</div>")
+    :(filtered.length?filtered.map(o=>cardHtml(o,false)).join(""):"<div class=\"no-orders\">No hay ordenes pendientes aqui</div>");
+
+  el.innerHTML="<div class=\"tec-header\">"
+    +"<div class=\"tec-header-top\"><div>"
+    +"<h2>"+tecActivo+"</h2>"
+    +"<div class=\"tec-stats\">"
+    +"<span class=\"stat-pend\">"+pend+"</span> pendientes · "
+    +"<span class=\"stat-done\">"+done+"</span> listas · "
+    +pct+"% <span class=\"stat-completado\" onclick=\"abrirHistorial('"+tecActivo.replace(/'/g,"\\'")+"')\">completado</span>"
+    +"</div></div>"
+    +"<div class=\"ring-wrap\"><svg width=\"56\" height=\"56\"><circle cx=\"28\" cy=\"28\" r=\"22\" fill=\"none\" stroke=\"#1E293B\" stroke-width=\"5\"/>"
+    +"<circle cx=\"28\" cy=\"28\" r=\"22\" fill=\"none\" stroke=\""+ringColor+"\" stroke-width=\"5\" stroke-dasharray=\""+circ+"\" stroke-dashoffset=\""+(circ*(1-pct/100))+"\" stroke-linecap=\"round\"/>"
+    +"</svg><div class=\"ring-label\">"+pct+"%</div></div></div>"
+    +"<div class=\"dept-filters\">"+deptBtns+"</div></div>"
+    +"<div class=\"orders\">"+cards+"</div>";
+}
+
+function selectTec(t){ tecActivo=t; deptoActivo="TODOS"; renderSidebar(); renderMain(); }
+function selectDepto(d){ deptoActivo=d; renderMain(); }
+
+// ── Importar Excel ──────────────────────────────────────
+function importarExcel(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=async function(ev){
+    try {
+      const wb=XLSX.read(ev.target.result,{type:"array"});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:""});
+      if(!rows.length){ showToast("El archivo esta vacio","error"); return; }
+      const keys=Object.keys(rows[0]);
+      function find(){
+        const cs=Array.prototype.slice.call(arguments);
+        return keys.find(function(k){ return cs.some(function(c){ return k.toLowerCase().indexOf(c)>=0; }); })||"";
+      }
+      const colId=find("numero","solicitud","id","ot");
+      const colActivo=find("activo","equipo","nombre");
+      const colDesc=find("descripcion","desc");
+      const colTec=find("asignado","tecnico");
+      const colDepto=find("departamento","depto","area");
+      const colFecha=find("fecha","date");
+      const colSol=find("solicitado","solicitante","por");
+      if(!colId||!colTec){ showToast("No se reconoce el formato","error"); return; }
+      const nueva=[];
+      rows.forEach(function(r){
+        const id=parseInt(r[colId]);
+        if(!id||isNaN(id)) return;
+        nueva.push({id:id,activo:String(r[colActivo]||"Sin nombre").trim(),desc:String(r[colDesc]||r[colActivo]||"").trim(),tec:String(r[colTec]||"Sin asignar").trim(),depto:String(r[colDepto]||"GENERAL").trim().toUpperCase(),fecha:String(r[colFecha]||"").trim(),sol:String(r[colSol]||"").trim()});
+      });
+      if(!nueva.length){ showToast("No se encontraron ordenes validas","error"); return; }
+      // Archivar listas que ya no estan
+      const idsNuevos=new Set(nueva.map(function(o){ return o.id; }));
+      const aArchivar=ORDERS.filter(function(o){ return !idsNuevos.has(o.id)&&completadas[o.id]; });
+      if(aArchivar.length){
+        const hist=await getHistorial();
+        aArchivar.forEach(function(o){
+          if(!hist.find(function(h){ return h.id===o.id; })){
+            hist.unshift({id:o.id,activo:o.activo,desc:o.desc,tec:o.tec,depto:o.depto,fecha:o.fecha,sol:o.sol,completadoEn:completadas[o.id]});
+          }
+        });
+        await saveHistorial(hist);
+      }
+      // Limpiar completadas que ya no existen
+      Object.keys(completadas).forEach(function(k){ if(!idsNuevos.has(parseInt(k))) delete completadas[k]; });
+      ORDERS=nueva;
+      await pushToCloud();
+      refreshTecnicos();
+      if(tecActivo&&TECNICOS.indexOf(tecActivo)<0){ tecActivo=null; deptoActivo="TODOS"; }
+      updateHeader(); renderSidebar(); renderMain();
+      showToast("✅ "+ORDERS.length+" ordenes cargadas y sincronizadas");
+    } catch(err){ showToast("Error: "+err.message,"error"); }
+    e.target.value="";
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Historial Modal ─────────────────────────────────────
+async function abrirHistorial(tec){
+  document.getElementById("modalHistorial").classList.add("open");
+  document.getElementById("modalTecNombre").textContent=tec;
+  document.getElementById("modalBody").innerHTML="<div class=\"no-hist\">Cargando...</div>";
+  document.getElementById("modalFiltros").innerHTML="";
+  histFiltro="TODOS";
+  const hist=await getHistorial();
+  const tecHist=hist.filter(function(o){ return o.tec===tec; });
+  renderModalHistorial(tecHist);
+}
+
+function renderModalHistorial(tecHist){
+  const deptos=["TODOS",...new Set(tecHist.map(function(o){ return o.depto; }))];
+  const filtered=histFiltro==="TODOS"?tecHist:tecHist.filter(function(o){ return o.depto===histFiltro; });
+  document.getElementById("modalFiltros").innerHTML=deptos.map(function(d){
+    const color=d==="TODOS"?"#2563EB":dc(d);
+    const active=histFiltro===d;
+    const style=active?"border-color:"+color+";color:"+color+";background:"+color+"18;":"";
+    return "<button class=\"dept-btn"+(active?" active-dept":"")+"\" style=\""+style+"\" onclick=\"histFiltrar('"+d+"')\">"+d+"</button>";
+  }).join("");
+  if(!filtered.length){ document.getElementById("modalBody").innerHTML="<div class=\"no-hist\">No hay ordenes completadas aqui</div>"; return; }
+  document.getElementById("modalBody").innerHTML=filtered.map(function(o){
+    const color=dc(o.depto);
+    return "<div class=\"hist-card\">"
+      +"<div class=\"hist-id\"><div class=\"hist-id-label\">OT</div>"+o.id+"</div>"
+      +"<div class=\"hist-body\"><div class=\"hist-title\">✓ "+o.activo+"</div>"
+      +"<div class=\"hist-desc\">"+o.desc+"</div>"
+      +"<div class=\"hist-meta\">"
+      +"<span style=\"color:"+color+";font-weight:600;font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid "+color+"40;background:"+color+"18\">"+o.depto+"</span>"
+      +"<span>📅 "+o.fecha+"</span><span>👤 "+o.sol+"</span>"
+      +"<span class=\"hist-done\">✅ "+o.completadoEn+"</span>"
+      +"</div></div></div>";
+  }).join("");
+}
+
+function histFiltrar(d){ histFiltro=d; document.getElementById("modalHistorial").classList.remove("open"); abrirHistorial(document.getElementById("modalTecNombre").textContent); }
+function cerrarHistorial(){ document.getElementById("modalHistorial").classList.remove("open"); }
+
+// ── Init ────────────────────────────────────────────────
+ORDERS = BASE_ORDERS.filter(function(o){ return o.tec==="Wilberh Rivas"; });
+refreshTecnicos();
+tecActivo="Wilberh Rivas";
+pullFromCloud();
+renderSidebar();
+</script>
+</body>
+</html>
