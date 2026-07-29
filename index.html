@@ -415,13 +415,16 @@ function renderMain(){
     +"<div class=\"tec-stats\">"
     +"<span class=\"stat-pend\">"+pend+"</span> pendientes · "
     +"<span class=\"stat-done\">"+done+"</span> listas · "
-    +pct+"% <span class=\"stat-completado\" onclick=\"abrirHistorial('"+tecActivo.replace(/'/g,"\\'")+"')\">completado</span>"
+    +pct+"% <span class=\"stat-completado\" id=\"btnCompletado\">completado</span>"
     +"</div></div>"
     +"<div class=\"ring-wrap\"><svg width=\"56\" height=\"56\"><circle cx=\"28\" cy=\"28\" r=\"22\" fill=\"none\" stroke=\"#1E293B\" stroke-width=\"5\"/>"
     +"<circle cx=\"28\" cy=\"28\" r=\"22\" fill=\"none\" stroke=\""+ringColor+"\" stroke-width=\"5\" stroke-dasharray=\""+circ+"\" stroke-dashoffset=\""+(circ*(1-pct/100))+"\" stroke-linecap=\"round\"/>"
     +"</svg><div class=\"ring-label\">"+pct+"%</div></div></div>"
     +"<div class=\"dept-filters\">"+deptBtns+"</div></div>"
     +"<div class=\"orders\">"+cards+"</div>";
+  // Attach historial button
+  var btnComp=document.getElementById("btnCompletado");
+  if(btnComp){ var _tec=tecActivo; btnComp.addEventListener("click",function(){ abrirHistorial(_tec); }); }
 }
 
 function selectTec(t){ tecActivo=t; deptoActivo="TODOS"; renderSidebar(); renderMain(); }
