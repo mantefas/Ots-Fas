@@ -261,6 +261,20 @@ function saveLocalBackup(){
 function loadLocalBackup(){
   try{ return JSON.parse(localStorage.getItem("ots_comp_backup")||"{}")||{}; }catch(_){ return {}; }
 }
+function getPendingSync(){
+  try{ return JSON.parse(localStorage.getItem("ots_pending")||"{}")||{}; }catch(_){ return {}; }
+}
+function addPendingSync(id,fecha){
+  var p=getPendingSync(); p[id]=fecha;
+  try{ localStorage.setItem("ots_pending",JSON.stringify(p)); }catch(_){}
+}
+function removePendingSync(id){
+  var p=getPendingSync(); delete p[id];
+  try{ localStorage.setItem("ots_pending",JSON.stringify(p)); }catch(_){}
+}
+function clearPendingSync(){
+  try{ localStorage.removeItem("ots_pending"); }catch(_){}
+}
 
 async function pullFromCloud(){
   try {
@@ -273,15 +287,14 @@ async function pullFromCloud(){
       refreshTecnicos(); updateHeader();
     }
     if(data.completadas!==undefined){
-      // Merge: cloud + local backup (local wins — survives refresh)
+      // Cloud is source of truth — but add pending local items not yet pushed
+      var pending=getPendingSync();
       var merged=Object.assign({},data.completadas);
-      var local=loadLocalBackup();
-      Object.keys(local).forEach(function(k){ merged[k]=local[k]; });
+      Object.keys(pending).forEach(function(k){ merged[k]=pending[k]; });
       completadas=merged;
-      // If merged differs from cloud, push back immediately
-      if(JSON.stringify(merged)!==JSON.stringify(data.completadas)){
-        pushToCloud();
-      }
+      // If we have pending items, push them to cloud
+      if(Object.keys(pending).length>0){ pushToCloud(); }
+      saveLocalBackup();
     }
     renderSidebar();
     if(tecActivo) renderMain();
@@ -294,6 +307,7 @@ async function pushToCloud(){
     const payload={orders:ORDERS,completadas:completadas};
     await apiPut(URL_MAIN,payload);
     lastHash=JSON.stringify(payload);
+    clearPendingSync();
     setSyncDot("ok");
   } catch(_){
     setSyncDot("idle");
@@ -378,6 +392,7 @@ async function marcar(id){
   const fecha=new Date().toLocaleString("es-CR");
   const idNum=parseInt(id);
   completadas[idNum]=fecha;
+  addPendingSync(idNum,fecha);
   renderSidebar(); renderMain(); schedulePush();
   const orden=ORDERS.find(function(o){ return parseInt(o.id)===idNum; });
   if(orden){
@@ -388,7 +403,8 @@ async function marcar(id){
 async function desmarcar(id){
   const idNum=parseInt(id);
   delete completadas[idNum];
-  delete completadas[id]; // por si acaso es string
+  delete completadas[id];
+  removePendingSync(idNum);
   renderSidebar(); renderMain(); schedulePush();
   desarchivarOrden(idNum);
 }
