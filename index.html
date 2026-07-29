@@ -329,20 +329,52 @@ window.addEventListener("beforeunload", function(){
 
 setInterval(function(){ pullFromCloud(); },10000);
 
-// ── Historial API ───────────────────────────────────────
-async function getHistorial(){ try{ const d=await apiGet(URL_HIST); return d.historial||[]; }catch(_){ return []; } }
-async function saveHistorial(hist){ try{ await apiPut(URL_HIST,{historial:hist}); }catch(_){} }
+// ── Historial API (localStorage primary, JSONBin backup) ─
+function getHistorialLocal(){
+  try{ return JSON.parse(localStorage.getItem("ots_hist_backup")||"[]")||[]; }catch(_){ return []; }
+}
+function saveHistorialLocal(hist){
+  try{ localStorage.setItem("ots_hist_backup",JSON.stringify(hist)); }catch(_){}
+}
+async function getHistorial(){
+  try{
+    const d=await apiGet(URL_HIST);
+    const cloudHist=d.historial||[];
+    // Merge with local: local may have entries not yet in cloud
+    const localHist=getHistorialLocal();
+    const merged=[...cloudHist];
+    localHist.forEach(function(l){
+      if(!merged.find(function(m){ return m.id===l.id; })) merged.unshift(l);
+    });
+    saveHistorialLocal(merged);
+    return merged;
+  }catch(_){
+    return getHistorialLocal();
+  }
+}
+async function saveHistorial(hist){
+  saveHistorialLocal(hist);
+  try{ await apiPut(URL_HIST,{historial:hist}); }catch(_){}
+}
 
 async function archivarOrden(orden,fechaComp){
-  const hist = await getHistorial();
-  if(hist.find(h=>h.id===orden.id)) return; // ya existe
-  hist.unshift({id:orden.id,activo:orden.activo,desc:orden.desc,tec:orden.tec,depto:orden.depto,fecha:orden.fecha,sol:orden.sol,completadoEn:fechaComp});
-  await saveHistorial(hist);
+  const hist=getHistorialLocal();
+  const idNum=parseInt(orden.id);
+  if(hist.find(function(h){ return parseInt(h.id)===idNum; })){
+    // Ya existe localmente — solo sync cloud
+    try{ await apiPut(URL_HIST,{historial:hist}); }catch(_){}
+    return;
+  }
+  hist.unshift({id:idNum,activo:orden.activo,desc:orden.desc,tec:orden.tec,depto:orden.depto,fecha:orden.fecha,sol:orden.sol,completadoEn:fechaComp});
+  saveHistorialLocal(hist);
+  try{ await apiPut(URL_HIST,{historial:hist}); }catch(_){}
 }
 
 async function desarchivarOrden(id){
-  const hist = await getHistorial();
-  await saveHistorial(hist.filter(h=>h.id!==id));
+  const idNum=parseInt(id);
+  const hist=getHistorialLocal().filter(function(h){ return parseInt(h.id)!==idNum; });
+  saveHistorialLocal(hist);
+  try{ await apiPut(URL_HIST,{historial:hist}); }catch(_){}
 }
 
 // ── Marcar / Desmarcar ──────────────────────────────────
