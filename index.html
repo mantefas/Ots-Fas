@@ -348,16 +348,21 @@ async function desarchivarOrden(id){
 // ── Marcar / Desmarcar ──────────────────────────────────
 async function marcar(id){
   const fecha=new Date().toLocaleString("es-CR");
-  completadas[id]=fecha;
+  const idNum=parseInt(id);
+  completadas[idNum]=fecha;
   renderSidebar(); renderMain(); schedulePush();
-  const orden=ORDERS.find(o=>o.id===id);
-  if(orden) archivarOrden(orden,fecha);
+  const orden=ORDERS.find(function(o){ return parseInt(o.id)===idNum; });
+  if(orden){
+    archivarOrden(orden,fecha);
+  }
 }
 
 async function desmarcar(id){
-  delete completadas[id];
+  const idNum=parseInt(id);
+  delete completadas[idNum];
+  delete completadas[id]; // por si acaso es string
   renderSidebar(); renderMain(); schedulePush();
-  desarchivarOrden(id);
+  desarchivarOrden(idNum);
 }
 
 // ── Header ──────────────────────────────────────────────
