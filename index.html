@@ -265,9 +265,21 @@ async function pullFromCloud(){
     if(incoming===lastHash) return;
     lastHash=incoming;
     if(data.orders&&data.orders.length){
-      ORDERS=data.orders;
-      try{ localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS)); }catch(_){}
-      refreshTecnicos(); updateHeader();
+      // Compare timestamps: local vs cloud — newer wins
+      var localTs = parseInt(localStorage.getItem("ots_orders_ts")||"0");
+      var cloudTs = parseInt(data.ordersTs||"0");
+      if(cloudTs > localTs){
+        // Cloud is newer — use cloud data
+        ORDERS=data.orders;
+        try{
+          localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS));
+          localStorage.setItem("ots_orders_ts",cloudTs);
+        }catch(_){}
+        refreshTecnicos(); updateHeader();
+      } else if(localTs > cloudTs){
+        // Local is newer — push local to cloud
+        pushToCloud();
+      }
     }
     if(data.completadas!==undefined){
       // Merge: cloud + local backup (local wins — survives refresh)
@@ -285,10 +297,11 @@ async function pullFromCloud(){
   } catch(_){}
 }
 
-async function pushToCloud(){
+async function pushToCloud(ts){
   setSyncDot("syncing");
   try {
-    const payload={orders:ORDERS,completadas:completadas};
+    var ordersTs = ts || parseInt(localStorage.getItem("ots_orders_ts")||"0") || Date.now();
+    const payload={orders:ORDERS,completadas:completadas,ordersTs:ordersTs};
     await apiPut(URL_MAIN,payload);
     lastHash=JSON.stringify(payload);
     setSyncDot("ok");
@@ -496,8 +509,12 @@ function importarExcel(e){
       // Limpiar completadas que ya no existen
       Object.keys(completadas).forEach(function(k){ if(!idsNuevos.has(parseInt(k))) delete completadas[k]; });
       ORDERS=nueva;
-      try{ localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS)); }catch(_){}
-      await pushToCloud();
+      var _ts=Date.now();
+      try{
+        localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS));
+        localStorage.setItem("ots_orders_ts",_ts);
+      }catch(_){}
+      await pushToCloud(_ts);
       refreshTecnicos();
       if(tecActivo&&TECNICOS.indexOf(tecActivo)<0){ tecActivo=null; deptoActivo="TODOS"; }
       updateHeader(); renderSidebar(); renderMain();
