@@ -265,19 +265,18 @@ async function pullFromCloud(){
     if(incoming===lastHash) return;
     lastHash=incoming;
     if(data.orders&&data.orders.length){
-      // Compare timestamps: local vs cloud — newer wins
       var localTs = parseInt(localStorage.getItem("ots_orders_ts")||"0");
       var cloudTs = parseInt(data.ordersTs||"0");
-      if(cloudTs > localTs){
-        // Cloud is newer — use cloud data
+      if(cloudTs >= localTs){
+        // Cloud is same or newer — always trust cloud for tablets
         ORDERS=data.orders;
         try{
           localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS));
           localStorage.setItem("ots_orders_ts",cloudTs);
         }catch(_){}
         refreshTecnicos(); updateHeader();
-      } else if(localTs > cloudTs){
-        // Local is newer — push local to cloud
+      } else {
+        // Local is newer (just imported Excel) — push local to cloud
         pushToCloud();
       }
     }
