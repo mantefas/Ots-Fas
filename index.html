@@ -212,6 +212,11 @@ const DEPT_COLORS = {
 function dc(d){ return DEPT_COLORS[d]||"#6B7280"; }
 
 let ORDERS = [...BASE_ORDERS];
+// Load orders from localStorage if available
+try{
+  var _savedOrders=JSON.parse(localStorage.getItem("ots_orders_backup")||"[]");
+  if(_savedOrders&&_savedOrders.length) ORDERS=_savedOrders;
+}catch(_){}
 let completadas = {};
 try{ completadas=JSON.parse(localStorage.getItem("ots_comp_backup")||"{}")||{}; }catch(_){}
 let TECNICOS = [];
@@ -244,7 +249,10 @@ async function apiPut(url,data){ const r=await fetch(url,{method:"PUT",headers:H
 
 // ── Sync main data ──────────────────────────────────────
 function saveLocalBackup(){
-  try{ localStorage.setItem("ots_comp_backup",JSON.stringify(completadas)); }catch(_){}
+  try{
+    localStorage.setItem("ots_comp_backup",JSON.stringify(completadas));
+    localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS));
+  }catch(_){}
 }
 function loadLocalBackup(){
   try{ return JSON.parse(localStorage.getItem("ots_comp_backup")||"{}")||{}; }catch(_){ return {}; }
@@ -256,7 +264,11 @@ async function pullFromCloud(){
     const incoming = JSON.stringify(data);
     if(incoming===lastHash) return;
     lastHash=incoming;
-    if(data.orders&&data.orders.length){ ORDERS=data.orders; refreshTecnicos(); updateHeader(); }
+    if(data.orders&&data.orders.length){
+      ORDERS=data.orders;
+      try{ localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS)); }catch(_){}
+      refreshTecnicos(); updateHeader();
+    }
     if(data.completadas!==undefined){
       // Merge: cloud + local backup (local wins — survives refresh)
       var merged=Object.assign({},data.completadas);
@@ -484,6 +496,7 @@ function importarExcel(e){
       // Limpiar completadas que ya no existen
       Object.keys(completadas).forEach(function(k){ if(!idsNuevos.has(parseInt(k))) delete completadas[k]; });
       ORDERS=nueva;
+      try{ localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS)); }catch(_){}
       await pushToCloud();
       refreshTecnicos();
       if(tecActivo&&TECNICOS.indexOf(tecActivo)<0){ tecActivo=null; deptoActivo="TODOS"; }
