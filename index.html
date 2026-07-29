@@ -243,6 +243,13 @@ async function apiGet(url){ const r=await fetch(url+"/latest",{headers:HEADERS_R
 async function apiPut(url,data){ const r=await fetch(url,{method:"PUT",headers:HEADERS_WRITE,body:JSON.stringify(data)}); if(!r.ok) throw new Error(r.status); }
 
 // ── Sync main data ──────────────────────────────────────
+function saveLocalBackup(){
+  try{ localStorage.setItem("ots_comp_backup",JSON.stringify(completadas)); }catch(_){}
+}
+function loadLocalBackup(){
+  try{ return JSON.parse(localStorage.getItem("ots_comp_backup")||"{}")||{}; }catch(_){ return {}; }
+}
+
 async function pullFromCloud(){
   try {
     const data = await apiGet(URL_MAIN);
@@ -250,13 +257,16 @@ async function pullFromCloud(){
     if(incoming===lastHash) return;
     lastHash=incoming;
     if(data.orders&&data.orders.length){ ORDERS=data.orders; refreshTecnicos(); updateHeader(); }
-    if(data.completadas){
-      completadas=data.completadas;
-      // Merge local backup — local wins (handles refresh before push completes)
-      try{
-        const local=JSON.parse(localStorage.getItem("ots_comp_backup")||"{}")||{};
-        Object.keys(local).forEach(function(k){ completadas[k]=local[k]; });
-      }catch(_){}
+    if(data.completadas!==undefined){
+      // Merge: cloud + local backup (local wins — survives refresh)
+      var merged=Object.assign({},data.completadas);
+      var local=loadLocalBackup();
+      Object.keys(local).forEach(function(k){ merged[k]=local[k]; });
+      completadas=merged;
+      // If merged differs from cloud, push back immediately
+      if(JSON.stringify(merged)!==JSON.stringify(data.completadas)){
+        pushToCloud();
+      }
     }
     renderSidebar();
     if(tecActivo) renderMain();
@@ -266,18 +276,33 @@ async function pullFromCloud(){
 async function pushToCloud(){
   setSyncDot("syncing");
   try {
-    const payload={orders:ORDERS,completadas};
-    lastHash=JSON.stringify(payload);
+    const payload={orders:ORDERS,completadas:completadas};
     await apiPut(URL_MAIN,payload);
+    lastHash=JSON.stringify(payload);
     setSyncDot("ok");
   } catch(_){ setSyncDot("idle"); }
 }
 
 function schedulePush(){
-  localStorage.setItem("ots_comp_backup", JSON.stringify(completadas));
-  clearTimeout(syncTimer); syncTimer=setTimeout(pushToCloud,0);
+  saveLocalBackup();
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(pushToCloud,0);
 }
-setInterval(()=>pullFromCloud(),10000);
+
+// Push on page close/refresh as best effort
+window.addEventListener("beforeunload", function(){
+  saveLocalBackup();
+  // Try synchronous push via sendBeacon
+  var payload=JSON.stringify({orders:ORDERS,completadas:completadas});
+  try{
+    navigator.sendBeacon(
+      "https://jsonbin-beacon-proxy-not-available",
+      payload
+    );
+  }catch(_){}
+});
+
+setInterval(function(){ pullFromCloud(); },10000);
 
 // ── Historial API ───────────────────────────────────────
 async function getHistorial(){ try{ const d=await apiGet(URL_HIST); return d.historial||[]; }catch(_){ return []; } }
