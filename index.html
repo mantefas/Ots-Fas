@@ -100,6 +100,7 @@ body { min-height:100vh; background:#0F172A; font-family:'Inter',system-ui,sans-
   </div>
   <div class="header-date" id="fechaHoy"></div>
   <div class="sync-dot" id="syncDot"></div>
+  <button onclick="pullFromCloud()" title="Actualizar" style="background:transparent;border:1px solid #334155;border-radius:6px;color:#475569;font-size:12px;cursor:pointer;padding:4px 10px;margin-left:6px;">🔄</button>
 </div>
 <input type="file" id="fileExcel" accept=".xlsx,.xls" style="display:none" onchange="importarExcel(event)"/>
 <div class="toast" id="toast"></div>
@@ -293,7 +294,7 @@ async function pushToCloud(){
     setSyncDot("ok");
   } catch(_){
     setSyncDot("idle");
-    showToast("Error al sincronizar — verifica tu conexion","error");
+    throw _; // re-throw so caller knows it failed
   }
 }
 
@@ -316,7 +317,10 @@ window.addEventListener("beforeunload", function(){
   }catch(_){}
 });
 
-setInterval(function(){ pullFromCloud(); },30000);
+// Pull when tab becomes visible again (user switches back to app)
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible") pullFromCloud();
+});
 
 // ── Historial API (localStorage primary, JSONBin backup) ─
 function getHistorialLocal(){
@@ -540,11 +544,15 @@ function importarExcel(e){
         localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS));
         localStorage.setItem("ots_orders_ts",_ts);
       }catch(_){}
-      await pushToCloud();
+      try {
+        await pushToCloud();
+        showToast("✅ "+ORDERS.length+" ordenes cargadas y sincronizadas");
+      } catch(_){
+        showToast("⚠️ Ordenes cargadas pero SIN sincronizar — verifica conexion o limite JSONBin","error");
+      }
       refreshTecnicos();
       if(tecActivo&&TECNICOS.indexOf(tecActivo)<0){ tecActivo=null; deptoActivo="TODOS"; }
       updateHeader(); renderSidebar(); renderMain();
-      showToast("✅ "+ORDERS.length+" ordenes cargadas y sincronizadas");
     } catch(err){ showToast("Error: "+err.message,"error"); }
     e.target.value="";
   };
