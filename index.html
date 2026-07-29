@@ -213,6 +213,7 @@ function dc(d){ return DEPT_COLORS[d]||"#6B7280"; }
 
 let ORDERS = [...BASE_ORDERS];
 let completadas = {};
+try{ completadas=JSON.parse(localStorage.getItem("ots_comp_backup")||"{}")||{}; }catch(_){}
 let TECNICOS = [];
 let tecActivo = null;
 let deptoActivo = "TODOS";
@@ -249,7 +250,14 @@ async function pullFromCloud(){
     if(incoming===lastHash) return;
     lastHash=incoming;
     if(data.orders&&data.orders.length){ ORDERS=data.orders; refreshTecnicos(); updateHeader(); }
-    if(data.completadas) completadas=data.completadas;
+    if(data.completadas){
+      completadas=data.completadas;
+      // Merge local backup — local wins (handles refresh before push completes)
+      try{
+        const local=JSON.parse(localStorage.getItem("ots_comp_backup")||"{}")||{};
+        Object.keys(local).forEach(function(k){ completadas[k]=local[k]; });
+      }catch(_){}
+    }
     renderSidebar();
     if(tecActivo) renderMain();
   } catch(_){}
@@ -265,7 +273,10 @@ async function pushToCloud(){
   } catch(_){ setSyncDot("idle"); }
 }
 
-function schedulePush(){ clearTimeout(syncTimer); syncTimer=setTimeout(pushToCloud,800); }
+function schedulePush(){
+  localStorage.setItem("ots_comp_backup", JSON.stringify(completadas));
+  clearTimeout(syncTimer); syncTimer=setTimeout(pushToCloud,0);
+}
 setInterval(()=>pullFromCloud(),10000);
 
 // ── Historial API ───────────────────────────────────────
