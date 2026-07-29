@@ -62,6 +62,8 @@ body { min-height:100vh; background:#0F172A; font-family:'Inter',system-ui,sans-
 .btn-listo { padding:8px 14px; background:linear-gradient(135deg,#15803D,#166534); border:1px solid #166534; border-radius:8px; color:#86EFAC; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0; }
 .btn-deshacer { padding:8px 14px; background:transparent; border:1px solid #334155; border-radius:8px; color:#475569; font-size:12px; cursor:pointer; white-space:nowrap; flex-shrink:0; }
 .no-orders { color:#475569; text-align:center; padding-top:40px; }
+.reminder { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1E3A5F; border:1px solid #2563EB; border-radius:10px; padding:12px 24px; font-size:13px; color:#93C5FD; box-shadow:0 8px 32px rgba(0,0,0,0.4); z-index:997; opacity:0; transition:opacity 0.5s; pointer-events:none; white-space:nowrap; }
+.reminder.show { opacity:1; }
 .toast { position:fixed; bottom:24px; right:24px; background:#1E293B; border:1px solid #334155; border-radius:10px; padding:12px 18px; font-size:13px; color:#E2E8F0; box-shadow:0 8px 32px rgba(0,0,0,0.4); transform:translateY(80px); opacity:0; transition:all 0.3s; z-index:998; }
 .toast.show { transform:translateY(0); opacity:1; }
 .toast.success { border-color:#166534; color:#86EFAC; }
@@ -100,10 +102,11 @@ body { min-height:100vh; background:#0F172A; font-family:'Inter',system-ui,sans-
   </div>
   <div class="header-date" id="fechaHoy"></div>
   <div class="sync-dot" id="syncDot"></div>
-  <button onclick="pullFromCloud()" title="Actualizar" style="background:transparent;border:1px solid #334155;border-radius:6px;color:#475569;font-size:12px;cursor:pointer;padding:4px 10px;margin-left:6px;">🔄 Actualizar</button>
+
 </div>
 <input type="file" id="fileExcel" accept=".xlsx,.xls" style="display:none" onchange="importarExcel(event)"/>
 <div class="toast" id="toast"></div>
+<div class="reminder" id="reminder">🔄 Recuerde actualizar la página para ver cambios recientes</div>
 
 <div class="layout">
   <div class="sidebar">
@@ -599,6 +602,12 @@ function histFiltrar(d){ histFiltro=d; document.getElementById("modalHistorial")
 function cerrarHistorial(){ document.getElementById("modalHistorial").classList.remove("open"); }
 
 // ── Init ────────────────────────────────────────────────
+// Show reminder on every load
+setTimeout(function(){
+  var r=document.getElementById(reminder);
+  r.classList.add(show);
+  setTimeout(function(){ r.classList.remove(show); }, 4000);
+}, 800);
 pullFromCloud();
 renderSidebar();
 </script>
