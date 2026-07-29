@@ -265,20 +265,10 @@ async function pullFromCloud(){
     if(incoming===lastHash) return;
     lastHash=incoming;
     if(data.orders&&data.orders.length){
-      var localTs = parseInt(localStorage.getItem("ots_orders_ts")||"0");
-      var cloudTs = parseInt(data.ordersTs||"0");
-      if(cloudTs >= localTs){
-        // Cloud is same or newer — always trust cloud for tablets
-        ORDERS=data.orders;
-        try{
-          localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS));
-          localStorage.setItem("ots_orders_ts",cloudTs);
-        }catch(_){}
-        refreshTecnicos(); updateHeader();
-      } else {
-        // Local is newer (just imported Excel) — push local to cloud
-        pushToCloud();
-      }
+      // Always trust cloud for orders — laptop pushes immediately after Excel import
+      ORDERS=data.orders;
+      try{ localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS)); }catch(_){}
+      refreshTecnicos(); updateHeader();
     }
     if(data.completadas!==undefined){
       // Merge: cloud + local backup (local wins — survives refresh)
@@ -296,21 +286,23 @@ async function pullFromCloud(){
   } catch(_){}
 }
 
-async function pushToCloud(ts){
+async function pushToCloud(){
   setSyncDot("syncing");
   try {
-    var ordersTs = ts || parseInt(localStorage.getItem("ots_orders_ts")||"0") || Date.now();
-    const payload={orders:ORDERS,completadas:completadas,ordersTs:ordersTs};
+    const payload={orders:ORDERS,completadas:completadas};
     await apiPut(URL_MAIN,payload);
     lastHash=JSON.stringify(payload);
     setSyncDot("ok");
-  } catch(_){ setSyncDot("idle"); }
+  } catch(_){
+    setSyncDot("idle");
+    showToast("Error al sincronizar — verifica tu conexion","error");
+  }
 }
 
 function schedulePush(){
   saveLocalBackup();
   clearTimeout(syncTimer);
-  syncTimer=setTimeout(pushToCloud,0);
+  syncTimer=setTimeout(function(){ pushToCloud(); },0);
 }
 
 // Push on page close/refresh as best effort
@@ -550,7 +542,7 @@ function importarExcel(e){
         localStorage.setItem("ots_orders_backup",JSON.stringify(ORDERS));
         localStorage.setItem("ots_orders_ts",_ts);
       }catch(_){}
-      await pushToCloud(_ts);
+      await pushToCloud();
       refreshTecnicos();
       if(tecActivo&&TECNICOS.indexOf(tecActivo)<0){ tecActivo=null; deptoActivo="TODOS"; }
       updateHeader(); renderSidebar(); renderMain();
