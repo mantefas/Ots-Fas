@@ -191,6 +191,8 @@ body { min-height:100vh; background:#0F172A; font-family:'Inter',system-ui,sans-
         <h4>🖥 DIAPOSITIVAS</h4>
         <label class="chk"><input type="checkbox" id="c_ranking"> Mostrar ranking semanal</label>
         <label class="chk"><input type="checkbox" id="c_verCeros"> Mostrar técnicos sin pendientes</label>
+        <h4>👷 TÉCNICOS QUE APARECEN EN EL MONITOR (desmarcá para ocultar)</h4>
+        <div id="c_tecs" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
       </div>
     </div>
     <div class="cfg-actions"><button class="btn-sec" onclick="cerrarModal('modalConfig')">Cancelar</button><button class="btn-pri" onclick="guardarConfig()">Guardar</button></div>
@@ -217,7 +219,7 @@ const REF_EVENTOS = db.doc("ots/eventos");  // {nuevas:[], listos:[]}
 const COL_HIST    = db.collection("historial"); // un documento por OT completada
 
 const CONFIG_DEF = {rojoCant:6,rojoDias:7,amaCant:3,amaDias:3,segSlide:12,durAlerta:10,horaIni:6,horaFin:18,
-  alertaNueva:true,alertaListo:true,sonidoNueva:3,sonidoListo:6,volumen:6,ranking:true,verCeros:true};
+  alertaNueva:true,alertaListo:true,sonidoNueva:3,sonidoListo:6,volumen:6,ranking:true,verCeros:true,ocultos:[]};
 
 // ═════════ SONIDOS ═════════
 const SONIDOS = ["Sin sonido","Ding-dong","Campanita","Aviso aeropuerto","Alarma corta","Sirena","Logro"];
@@ -514,6 +516,8 @@ function abrirConfig(){
   CFG_CHK.forEach(k=>document.getElementById("c_"+k).checked=!!CONFIG[k]);
   document.getElementById("c_sonidoNueva").value=CONFIG.sonidoNueva;
   document.getElementById("c_sonidoListo").value=CONFIG.sonidoListo;
+  const ocu=CONFIG.ocultos||[];
+  document.getElementById("c_tecs").innerHTML=TECNICOS.concat(ocu.filter(t=>TECNICOS.indexOf(t)<0)).filter(t=>t!=="Sin asignar").map(t=>"<label class=\"chk\"><input type=\"checkbox\" class=\"c_tec\" data-v=\""+esc(t)+"\""+(ocu.indexOf(t)<0?" checked":"")+"> "+esc(t)+"</label>").join("");
   document.getElementById("modalConfig").classList.add("open");
 }
 document.getElementById("c_volumen").addEventListener("input",function(){ VOL=(+this.value||6)/10; });
@@ -523,6 +527,7 @@ async function guardarConfig(){
   CFG_CHK.forEach(k=>c[k]=document.getElementById("c_"+k).checked);
   c.sonidoNueva=+document.getElementById("c_sonidoNueva").value;
   c.sonidoListo=+document.getElementById("c_sonidoListo").value;
+  c.ocultos=[...document.querySelectorAll(".c_tec")].filter(x=>!x.checked).map(x=>x.dataset.v);
   if(c.amaCant>c.rojoCant||c.amaDias>c.rojoDias){ showToast("Amarillo debe ser menor o igual que rojo","error"); return; }
   try{ await REF_CONFIG.set(c); cerrarModal("modalConfig"); showToast("✅ Configuración guardada — el monitor ya la aplicó"); }
   catch(e){ showToast("Error al guardar: "+e.message,"error"); }
