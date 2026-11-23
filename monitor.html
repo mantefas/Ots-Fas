@@ -102,7 +102,7 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(_){}
+// El monitor no usa caché local: así el indicador "En vivo" refleja la conexión real
 const FV = firebase.firestore.FieldValue;
 const REF_ESTADO  = db.doc("ots/estado");   // {orders:[], completadas:{id:fecha}}
 const REF_CONFIG  = db.doc("ots/config");   // configuración del monitor
@@ -263,7 +263,12 @@ function procesarCola(){
 }
 
 // ═════════ FIREBASE EN VIVO ═════════
+let _offT=null;
 function conexion(ok){
+  if(!ok){ if(!_offT) _offT=setTimeout(function(){ _offT=null; pintarCx(false); },15000); return; }
+  clearTimeout(_offT); _offT=null; pintarCx(true);
+}
+function pintarCx(ok){
   document.getElementById("dot").className=ok?"ok":"";
   document.getElementById("syncTx").textContent=ok?"En vivo":"Sin conexión — mostrando últimos datos";
 }
@@ -273,11 +278,14 @@ REF_ESTADO.onSnapshot({includeMetadataChanges:true},function(s){
   ESTADO=s.data(); construir();
 },function(e){ document.getElementById("err").textContent="⚠ "+e.message; });
 
-REF_CONFIG.onSnapshot(function(s){
+REF_CONFIG.onSnapshot({includeMetadataChanges:true},function(s){
+  conexion(!s.metadata.fromCache);
   CFG=Object.assign({},CONFIG_DEF,s.exists?s.data():{}); VOL=CFG.volumen/10; construir();
 });
 
-REF_EVENTOS.onSnapshot(function(s){
+REF_EVENTOS.onSnapshot({includeMetadataChanges:true},function(s){
+  conexion(!s.metadata.fromCache);
+  if(s.metadata.hasPendingWrites===false&&s.metadata.fromCache&&!s.exists) return;
   const d=s.exists?s.data():{}, lim=Date.now()-H24;
   NUEVAS={}; (d.nuevas||[]).forEach(n=>{ if(n.ts>=lim) NUEVAS[n.id]=n; });
   let max=lastSeen;
@@ -311,6 +319,7 @@ setInterval(function(){ const n=new Date(); if(n.getHours()===5&&n.getMinutes()=
 function escalar(){ const k=Math.min(innerWidth/1920,innerHeight/1080), a=document.getElementById("app");
   a.style.transform="scale("+k+")"; a.style.left=((innerWidth-1920*k)/2)+"px"; a.style.top=((innerHeight-1080*k)/2)+"px"; }
 addEventListener("resize",escalar); escalar();
+addEventListener("offline",function(){ pintarCx(false); });
 
 // ═════════ INICIO ═════════
 async function iniciar(fs){
