@@ -74,6 +74,9 @@ html,body{height:100%;overflow:hidden;background:#0B1220;color:#F1F5F9;font-fami
 #start b{font-size:64.8px}
 .tec>div{min-width:0}
 .list{min-width:0}
+.hoy{display:inline-block;margin:10px 0 4px;padding:10px 22px;border-radius:14px;background:#0E3A4A;border:3px solid #22D3EE;color:#A5F3FC;font-size:30px;font-weight:600;animation:hoyp 2s infinite}
+.hoy b{color:#fff;font-weight:900}
+@keyframes hoyp{50%{box-shadow:0 0 28px #22D3EE88}}
 </style>
 </head>
 <body>
@@ -180,7 +183,7 @@ function calcular(){
   return Object.keys(porTec).map(t=>{
     const l=porTec[t].sort((a,b)=>(NUEVAS[b.id]?1:0)-(NUEVAS[a.id]?1:0)||b.d-a.d);
     const maxD=l.reduce((m,o)=>Math.max(m,o.d),0);
-    return {tec:t,lista:l,n:l.length,maxD,niv:nivel(l.length,maxD),nuevas:l.filter(o=>NUEVAS[o.id]).length};
+    return {tec:t,lista:l,n:l.length,maxD,niv:nivel(l.length,maxD),nuevas:asignadasHoy(t).length};
   }).sort((a,b)=>"ryg".indexOf(a.niv)-"ryg".indexOf(b.niv)||b.n-a.n);
 }
 
@@ -192,14 +195,25 @@ function slideResumen(tecs){
     +"<div class=\"grid\">"+vis.map(t=>"<div class=\"tile\" style=\"border-color:"+COL[t.niv]+"\">"
       +"<div class=\"n\" style=\"color:"+COL[t.niv]+"\">"+t.n+"</div><div><div class=\"nm\">"+esc(nombreCorto(t.tec))+"</div>"
       +"<div class=\"sub\">"+(t.n?"Más antigua: "+t.maxD+" día"+(t.maxD==1?"":"s"):"Al día")+"</div>"
-      +(t.nuevas?"<div class=\"sub\" style=\"color:#FCA5A5;font-weight:800\">🔔 "+t.nuevas+" nueva"+(t.nuevas==1?"":"s")+"</div>":"")
+      +(t.nuevas?"<div class=\"sub\" style=\"color:#22D3EE;font-weight:800\">🔔 "+t.nuevas+" nueva"+(t.nuevas==1?"":"s")+" hoy</div>":"")
       +"</div></div>").join("")+"</div>"};
 }
+function inicioHoy(){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+function asignadasHoy(tec){ const h=inicioHoy(); return Object.values(NUEVAS).filter(n=>n.tec===tec&&n.ts>=h).sort((a,b)=>a.ts-b.ts); }
+function bannerHoy(tec){
+  const l=asignadasHoy(tec); if(!l.length) return "";
+  const u=new Date(l[l.length-1].ts);
+  const dia=u.toLocaleDateString("es-CR",{weekday:"long"});
+  const hora=u.toLocaleTimeString("es-CR",{hour:"numeric",minute:"2-digit"});
+  const txt=l.length===1?"Se te asignó <b>1 OT nueva</b> hoy "+dia+" a las <b>"+hora+"</b>"
+                        :"Se te asignaron <b>"+l.length+" OTs nuevas</b> hoy "+dia+" · la última a las <b>"+hora+"</b>";
+  return "<div class=\"hoy\">🔔 "+txt+"</div>";
+}
 function slideTec(t){
-  const top=t.lista.slice(0,4), resto=t.n-top.length, c=COL[t.niv];
+  const ban=bannerHoy(t.tec), top=t.lista.slice(0,ban?3:4), resto=t.n-top.length, c=COL[t.niv];
   return {alarm:t.niv==="r",html:"<div class=\"tec\">"
     +"<div class=\"light\"><b class=\"r "+(t.niv==="r"?"on":"")+"\"></b><b class=\"y "+(t.niv==="y"?"on":"")+"\"></b><b class=\"g "+(t.niv==="g"?"on":"")+"\"></b></div>"
-    +"<div><div class=\"who\">"+esc(t.tec)+"</div>"
+    +"<div><div class=\"who\">"+esc(t.tec)+"</div>"+ban
     +"<div class=\"big\"><span class=\"num\" style=\"color:"+c+"\">"+t.n+"</span><span class=\"lbl\">OT"+(t.n==1?"":"s")+" pendiente"+(t.n==1?"":"s")
     +(t.n?"<br>la más antigua: "+t.maxD+" día"+(t.maxD==1?"":"s"):"")+"</span></div>"
     +"<div class=\"msg "+(t.niv==="r"?"blink":"")+"\" style=\"background:"+c+"22;color:"+c+";border:3.2px solid "+c+"\">"+msg(t.niv,t.n)+"</div>"
@@ -312,6 +326,7 @@ setInterval(function(){
   document.getElementById("barIn").style.width=(tick/CFG.segSlide*100)+"%";
   if(tick>=CFG.segSlide){ tick=0; idx=(idx+1)%slides.length; mostrar(idx); }
 },1000);
+setInterval(function(){ construir(); },300000);
 // recarga diaria a las 5:00 (memoria + ranking de la semana)
 setInterval(function(){ const n=new Date(); if(n.getHours()===5&&n.getMinutes()===0) location.reload(); },60000);
 
