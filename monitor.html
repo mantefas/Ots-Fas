@@ -149,7 +149,7 @@ const H24 = 24*3600*1000;
 const DEPT = {COCINA:"#F59E0B",BODEGAMP:"#3B82F6",BODEGAPT:"#8B5CF6",POSTRES:"#EC4899",LOGISTICA:"#14B8A6",COMEDOR:"#F97316",DECORACION:"#A78BFA",BATIDOS:"#22D3EE",PILAS:"#84CC16",MANTENIMIENTO:"#6B7280",ETIQUETAS:"#FB923C",SANIDAD:"#34D399"};
 const COL = {r:"#EF4444",y:"#FACC15",g:"#22C55E"};
 const OCULTAR = ["Sin asignar"];
-let CFG = Object.assign({},CONFIG_DEF), ESTADO = null, NUEVAS = {}, SEMANA = [];
+let CFG = Object.assign({},CONFIG_DEF), ESTADO = null, NUEVAS = {}, EV_NUEVAS = [], SEMANA = [];
 let slides = [], idx = 0, tick = 0, cola = [], alertaHasta = 0, primeraVez = true;
 let lastSeen = +(localStorage.getItem("mon_lastSeen")||0) || Date.now();
 
@@ -237,6 +237,7 @@ function slideRanking(){
 
 function construir(){
   if(!ESTADO) return;
+  const h0=inicioHoy(); NUEVAS={}; EV_NUEVAS.forEach(n=>{ if(n.ts>=h0) NUEVAS[n.id]=n; });
   const tecs=calcular();
   slides=[slideResumen(tecs)];
   tecs.filter(t=>OCULTAR.includes(t.tec)&&t.n).forEach(t=>slides.push(slideSinAsignar(t)));
@@ -301,7 +302,7 @@ REF_EVENTOS.onSnapshot({includeMetadataChanges:true},function(s){
   conexion(!s.metadata.fromCache);
   if(s.metadata.hasPendingWrites===false&&s.metadata.fromCache&&!s.exists) return;
   const d=s.exists?s.data():{}, lim=Date.now()-H24;
-  NUEVAS={}; (d.nuevas||[]).forEach(n=>{ if(n.ts>=lim) NUEVAS[n.id]=n; });
+  EV_NUEVAS=d.nuevas||[];
   let max=lastSeen;
   if(CFG.alertaNueva){
     const grupos={};

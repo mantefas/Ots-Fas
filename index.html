@@ -292,11 +292,17 @@ REF_ESTADO.onSnapshot({includeMetadataChanges:true},function(snap){
 },function(){ setSyncDot("idle"); });
 
 REF_EVENTOS.onSnapshot(function(snap){
-  NUEVAS={};
-  const lim=Date.now()-H24;
-  ((snap.exists&&snap.data().nuevas)||[]).forEach(function(n){ if(n.ts>=lim) NUEVAS[n.id]=n; });
-  renderSidebar(); renderMain();
+  EV_NUEVAS=(snap.exists&&snap.data().nuevas)||[];
+  calcNuevas();
 });
+// La etiqueta NUEVA dura hasta medianoche
+let EV_NUEVAS=[];
+function calcNuevas(){
+  const d=new Date(); d.setHours(0,0,0,0); const h0=d.getTime();
+  NUEVAS={}; EV_NUEVAS.forEach(function(n){ if(n.ts>=h0) NUEVAS[n.id]=n; });
+  renderSidebar(); renderMain();
+}
+setInterval(calcNuevas,300000);
 REF_CONFIG.onSnapshot(function(snap){ CONFIG=Object.assign({},CONFIG_DEF,snap.exists?snap.data():{}); VOL=CONFIG.volumen/10; });
 
 async function migrarDesdeJSONBin(){
