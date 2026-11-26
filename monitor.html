@@ -41,7 +41,7 @@ html,body{height:100%;overflow:hidden;background:#0B1220;color:#F1F5F9;font-fami
 .big{display:flex;align-items:baseline;gap:38.4px;margin:10.8px 0}
 .big .num{font-size:216px;font-weight:900;line-height:.9}
 .big .lbl{white-space:nowrap;font-size:44px;font-weight:700;color:#CBD5E1}
-.msg{font-size:38.9px;font-weight:800;padding:16.2px 38.4px;border-radius:16.2px;display:inline-block;margin-bottom:27px}
+.msg{font-size:30px;font-weight:800;padding:12px 28px;border-radius:14px;display:inline-block;margin-bottom:24px}
 .list{display:flex;flex-direction:column;gap:13px}
 .it{display:flex;gap:24px;align-items:center;background:#131D33;border-radius:13px;padding:12px 24px;font-size:22px;min-width:0}
 .it .id{color:#F27231;font-weight:900;min-width:130px;font-size:30px}
@@ -51,8 +51,8 @@ html,body{height:100%;overflow:hidden;background:#0B1220;color:#F1F5F9;font-fami
 .nw{font-size:19.4px;font-weight:900;padding:3.2px 15.4px;border-radius:21.6px;background:#DC2626;color:#fff;animation:bl 1s infinite}
 .alarm{animation:pulse 1.4s infinite}
 @keyframes pulse{0%,100%{background:#0B1220}50%{background:#560F12}}
-.blink{animation:bl 1s infinite}
-@keyframes bl{50%{opacity:.55}}
+.blink{animation:bl 1.8s ease-in-out infinite}
+@keyframes bl{50%{opacity:.6}}
 .rk{display:flex;align-items:center;gap:38.4px;background:#131D33;border-radius:16.2px;padding:17.3px 38.4px;font-size:36.7px;font-weight:700}
 .rk .pos{width:115.2px;font-size:48.6px;text-align:center}
 .rk .nm{width:537.6px}
@@ -77,6 +77,7 @@ html,body{height:100%;overflow:hidden;background:#0B1220;color:#F1F5F9;font-fami
 .hoy{display:inline-block;margin:10px 0 4px;padding:10px 22px;border-radius:14px;background:#3D1A0C;border:3px solid #F27231;color:#FBC4A6;font-size:30px;font-weight:600;animation:hoyp 2s infinite}
 .hoy b{color:#fff;font-weight:900}
 @keyframes hoyp{50%{box-shadow:0 0 28px #F2723188}}
+
 </style>
 </head>
 <body>
@@ -216,7 +217,7 @@ function slideTec(t){
     +"<div><div class=\"who\">"+esc(t.tec)+"</div>"+ban
     +"<div class=\"big\"><span class=\"num\" style=\"color:"+c+"\">"+t.n+"</span><span class=\"lbl\">OT"+(t.n==1?"":"s")+" pendiente"+(t.n==1?"":"s")
     +(t.n?" · la más antigua: "+t.maxD+" día"+(t.maxD==1?"":"s"):"")+"</span></div>"
-    +"<div class=\"msg "+(t.niv==="r"?"blink":"")+"\" style=\""+(t.niv==="r"?"background:#D00000;color:#fff;border:3.2px solid #FF1A1A":"background:"+c+"22;color:"+c+";border:3.2px solid "+c)+"\">"+msg(t.niv,t.n)+"</div>"
+    +"<div class=\"msg "+(t.niv==="r"?"blink":"")+"\" style=\""+(t.niv==="r"?"background:#D00000;color:#fff;border:3px solid #FF1A1A":"background:"+c+"22;color:"+c+";border:3px solid "+c)+"\">"+msg(t.niv,t.n)+"</div>"
     +"<div class=\"list\">"+top.map(o=>itemHtml(o)).join("")
     +(resto>0?"<div style=\"font-size:25.9px;color:#94A3B8\">…y "+resto+" más</div>":"")+"</div></div></div>"};
 }
@@ -248,10 +249,16 @@ function construir(){
   if(idx>=slides.length) idx=0;
   mostrar(idx);
 }
+function contar(el){
+  const fin=+el.dataset.count, t0=performance.now(), dur=900;
+  if(!fin){ el.textContent="0"; return; }
+  (function f(t){ const k=Math.min(1,(t-t0)/dur); el.textContent=Math.round(fin*(1-Math.pow(1-k,3))); if(k<1) requestAnimationFrame(f); })(t0);
+}
 function mostrar(i){
   document.querySelectorAll(".slide").forEach((el,k)=>el.classList.toggle("on",k===i));
   document.querySelectorAll("#dots i").forEach((el,k)=>el.classList.toggle("on",k===i));
   document.body.classList.toggle("alarm",!!(slides[i]&&slides[i].alarm));
+  const sl=document.getElementById("s"+i); if(sl) sl.querySelectorAll("[data-count]").forEach(contar);
 }
 
 // ═════════ ALERTAS ═════════
