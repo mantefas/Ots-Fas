@@ -308,9 +308,9 @@ function aCfg(c){
 function procesar(d,quieto){
   CFG=aCfg(d.config); VOL=CFG.volumen/10; TECS=d.tecnicos||[];
   const orders=(d.abiertos||[]).map(t=>({id:t.id,activo:t.equipo,desc:t.desc,tec:t.tecnico||"Sin asignar",depto:t.area,
-    fecha:t.creado,urg:t.prioridad==="Urgente",asig:tms(t.asignado),creado:tms(t.creado)}));
+    fecha:t.creado,urg:t.prioridad==="Urgente",asig:Math.max(tms(t.asignado),tms(t.reasignado)),re:tms(t.reasignado)>tms(t.asignado),creado:tms(t.creado)}));
   ESTADO={orders:orders,completadas:{}};
-  EV_NUEVAS=orders.filter(o=>o.asig&&o.tec!=="Sin asignar").map(o=>({id:o.id,tec:o.tec,activo:o.activo,depto:o.depto,urg:o.urg,tipo:"nueva",ts:o.asig,d:dias(o.fecha)}));
+  EV_NUEVAS=orders.filter(o=>o.asig&&o.tec!=="Sin asignar").map(o=>({id:o.id,tec:o.tec,activo:o.activo,depto:o.depto,urg:o.urg,tipo:o.re?"reasignada":"nueva",ts:o.asig,d:dias(o.fecha)}));
   const cerr=(d.cerrados||[]).map(c=>({id:c.id,tec:c.tecnico,activo:c.equipo,depto:c.area,ts:tms(c.cerrado)}));
   const lu=lunes(); SEMANA=cerr.filter(c=>c.ts>=lu);
   if(quieto){ construir(); return; }
