@@ -215,7 +215,7 @@ function slideTec(t){
     +(resto>0?"<div style=\"font-size:25.9px;color:#94A3B8\">…y "+resto+" más</div>":"")+"</div></div></div>"};
 }
 function slideSinAsignar(t){
-  return {alarm:true,html:"<div class=\"h1\" style=\"color:#FF4D4D\">🚨 "+t.n+" OT"+(t.n==1?"":"s")+" SIN ASIGNAR — ¡alguien tómela en la PC!</div>"
+  return {alarm:true,html:"<div class=\"h1\" style=\"color:#FF4D4D\">🚨 "+t.n+" OT"+(t.n==1?"":"s")+" SIN ASIGNAR — ¡Revísenla"+(t.n==1?"":"s")+" en la PC de OTs!</div>"
     +"<div class=\"list\">"+t.lista.slice(0,7).map(o=>itemHtml(o,"#FF4D4D")).join("")+"</div>"};
 }
 function slideRanking(){
@@ -272,7 +272,7 @@ function procesarCola(){
     const o=a.o;
     el.className="on ticket";
     el.innerHTML="<div class=\"ic\">📥</div><div class=\"ti\">NUEVO TICKET"+(o.urg?" · URGENTE":"")+"</div>"
-      +"<div class=\"who\">"+esc(o.depto)+"</div><div class=\"sub\">Sin técnico asignado — tómelo en la PC de OTs</div>"
+      +"<div class=\"who\">"+esc(o.depto)+"</div><div class=\"sub\">Sin técnico asignado — revísenlo en la PC de OTs</div>"
       +"<div class=\"list\">"+itemHtml(Object.assign({},o,{d:null}))+"</div>";
     if(enHorario()) sonar(CFG.sonidoTicket);
     alertaHasta=Date.now()+CFG.durAlerta*1000;
