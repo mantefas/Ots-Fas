@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Monitor OTs · FAS</title>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 #app{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0B1220;transform-origin:0 0}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -78,6 +76,8 @@ html,body{height:100%;overflow:hidden;background:#0B1220;color:#F1F5F9;font-fami
 .hoy b{color:#fff;font-weight:900}
 @keyframes hoyp{50%{box-shadow:0 0 28px #F2723188}}
 
+.urg{flex-shrink:0;font-size:18px;font-weight:900;padding:3px 12px;border-radius:20px;border:2px solid #FF1A1A;color:#FF4D4D}
+#alerta.ticket{background:radial-gradient(circle,#5A2A0A 0%,#140803 75%)}
 </style>
 </head>
 <body>
@@ -95,26 +95,16 @@ html,body{height:100%;overflow:hidden;background:#0B1220;color:#F1F5F9;font-fami
 <div id="alerta"></div>
 </div>
 <script>
-// ═════════ FIREBASE ═════════
-const firebaseConfig = {
-  apiKey: "AIzaSyAHIa42h2xu1tMeZcxCDbC6hz9fmkI0UXM",
-  authDomain: "ots-fas.firebaseapp.com",
-  projectId: "ots-fas",
-  storageBucket: "ots-fas.firebasestorage.app",
-  messagingSenderId: "653993679654",
-  appId: "1:653993679654:web:08e50aa255ac6ff8267fe7"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-// El monitor no usa caché local: así el indicador "En vivo" refleja la conexión real
-const FV = firebase.firestore.FieldValue;
-const REF_ESTADO  = db.doc("ots/estado");   // {orders:[], completadas:{id:fecha}}
-const REF_CONFIG  = db.doc("ots/config");   // configuración del monitor
-const REF_EVENTOS = db.doc("ots/eventos");  // {nuevas:[], listos:[]}
-const COL_HIST    = db.collection("historial"); // un documento por OT completada
+// ═════════ ORIGEN DE DATOS: app Mantenimiento FAS (Google Apps Script) ═════════
+const API = "https://script.google.com/macros/s/AKfycbzrx7yGLjSmlt-amGAWufJyN6xJMen6NEtbqO0E1dPOyka0doOrmP0k5_8GPlqEuVT8/exec";
+// La clave va en el link del TV (&k=...), no en el código
+const CLAVE = new URLSearchParams(location.search).get("k") || (function(){ try{ return localStorage.getItem("mon_k")||""; }catch(_){ return ""; } })();
+try{ if(CLAVE) localStorage.setItem("mon_k",CLAVE); }catch(_){}
 
+// Valores por defecto (se reemplazan con la hoja Config › Monitor_...)
 const CONFIG_DEF = {rojoCant:6,rojoDias:7,amaCant:3,amaDias:3,segSlide:12,durAlerta:10,horaIni:6,horaFin:18,
-  alertaNueva:true,alertaListo:true,sonidoNueva:3,sonidoListo:6,volumen:6,ranking:true,verCeros:true,ocultos:[]};
+  alertaNueva:true,alertaListo:true,alertaTicket:true,sonidoNueva:3,sonidoListo:6,sonidoTicket:1,volumen:6,
+  ranking:true,verCeros:true,ocultos:[],refresco:30};
 
 // ═════════ SONIDOS ═════════
 const SONIDOS = ["Sin sonido","Ding-dong","Campanita","Aviso aeropuerto","Alarma corta","Sirena","Logro"];
@@ -147,12 +137,13 @@ function parseFecha(f){
 }
 const H24 = 24*3600*1000;
 
-const DEPT = {COCINA:"#F59E0B",BODEGAMP:"#3B82F6",BODEGAPT:"#8B5CF6",POSTRES:"#EC4899",LOGISTICA:"#14B8A6",COMEDOR:"#F97316",DECORACION:"#A78BFA",BATIDOS:"#22D3EE",PILAS:"#84CC16",MANTENIMIENTO:"#6B7280",ETIQUETAS:"#FB923C",SANIDAD:"#34D399"};
+const DEPT = {COCINA:"#F59E0B",BODEGAMP:"#3B82F6",BODEGAPT:"#8B5CF6",POSTRES:"#EC4899",LOGISTICA:"#14B8A6",COMEDOR:"#F97316",DECORACION:"#A78BFA",BATIDOS:"#22D3EE",PILAS:"#84CC16",MANTENIMIENTO:"#6B7280",ETIQUETAS:"#FB923C",ETIQUETASMARMITAS:"#FB923C",SANIDAD:"#34D399",CHEF:"#F43F5E",PASTAS:"#EAB308",DISTRIBUCION:"#0EA5E9",CALIDAD:"#94A3B8",CDA:"#10B981",DH:"#E879F9",ADMINISTRACION:"#64748B"};
+function dcol(a){ return DEPT[String(a||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z]/g,"").toUpperCase()]||"#6B7280"; }
 const COL = {r:"#FF1A1A",y:"#FACC15",g:"#A2C146"};
 const OCULTAR = ["Sin asignar"];
-let CFG = Object.assign({},CONFIG_DEF), ESTADO = null, NUEVAS = {}, EV_NUEVAS = [], SEMANA = [];
+let TECS = [], CFG = Object.assign({},CONFIG_DEF), ESTADO = null, NUEVAS = {}, EV_NUEVAS = [], SEMANA = [];
 let slides = [], idx = 0, tick = 0, cola = [], alertaHasta = 0, primeraVez = true;
-let lastSeen = +(localStorage.getItem("mon_lastSeen")||0) || Date.now();
+let lastSeen = +(localStorage.getItem("mon_lastSeen")||0) || 0;
 
 function dias(f){ const d=parseFecha(f); return d?Math.max(0,Math.floor((Date.now()-d)/864e5)):0; }
 function nombreCorto(t){ const p=t.split(/\s+/); return p.length>1?p[0]+" "+p[1][0]+".":t; }
@@ -170,9 +161,10 @@ function msg(l,n){
 function enHorario(){ const h=new Date().getHours(); return h>=CFG.horaIni&&h<CFG.horaFin; }
 function dColor(d){ return d>=CFG.rojoDias?COL.r:d>=CFG.amaDias?COL.y:"#94A3B8"; }
 function itemHtml(o,colorDp){
-  const c=colorDp||DEPT[String(o.depto).toUpperCase()]||"#6B7280";
+  const c=colorDp||dcol(o.depto);
   const n=NUEVAS[o.id]?"<span class=\"nw\">"+(NUEVAS[o.id].tipo==="reasignada"?"REASIGNADA":"NUEVA")+"</span>":"";
-  return "<div class=\"it\"><span class=\"id\">#"+esc(o.id)+"</span><span class=\"tx\">"+esc(o.activo)+"</span>"+n
+  const u=o.urg?"<span class=\"urg\">URGENTE</span>":"";
+  return "<div class=\"it\"><span class=\"id\">#"+esc(o.id)+"</span><span class=\"tx\">"+esc(o.activo)+"</span>"+u+n
     +"<span class=\"dp\" style=\"color:"+c+";border-color:"+c+"\">"+esc(o.depto)+"</span>"
     +(o.d!=null?"<span class=\"d\" style=\"color:"+dColor(o.d)+"\">"+o.d+" d</span>":"")+"</div>";
 }
@@ -180,6 +172,7 @@ function itemHtml(o,colorDp){
 function oculto(t){ return (CFG.ocultos||[]).indexOf(t)>=0; }
 function calcular(){
   const comp=ESTADO.completadas||{}, porTec={};
+  TECS.forEach(t=>{ if(!oculto(t)) porTec[t]=[]; });
   (ESTADO.orders||[]).forEach(o=>{ if(oculto(o.tec)) return; porTec[o.tec]=porTec[o.tec]||[]; if(!comp[o.id]) porTec[o.tec].push(Object.assign({},o,{d:dias(o.fecha)})); });
   return Object.keys(porTec).map(t=>{
     const l=porTec[t].sort((a,b)=>(NUEVAS[b.id]?1:0)-(NUEVAS[a.id]?1:0)||b.d-a.d);
@@ -275,6 +268,14 @@ function procesarCola(){
       +"<div class=\"list\">"+a.items.slice(0,4).map(o=>itemHtml(o)).join("")+(n>4?"<div style=\"font-size:28.1px\">…y "+(n-4)+" más</div>":"")+"</div>";
     if(enHorario()) sonar(CFG.sonidoNueva);
     alertaHasta=Date.now()+CFG.durAlerta*1000;
+  }else if(a.tipo==="ticket"){
+    const o=a.o;
+    el.className="on ticket";
+    el.innerHTML="<div class=\"ic\">📥</div><div class=\"ti\">NUEVO TICKET"+(o.urg?" · URGENTE":"")+"</div>"
+      +"<div class=\"who\">"+esc(o.depto)+"</div><div class=\"sub\">Sin técnico asignado — tómelo en la PC de OTs</div>"
+      +"<div class=\"list\">"+itemHtml(Object.assign({},o,{d:null}))+"</div>";
+    if(enHorario()) sonar(CFG.sonidoTicket);
+    alertaHasta=Date.now()+CFG.durAlerta*1000;
   }else{
     el.className="on listo";
     el.innerHTML="<div class=\"ic\">✅</div><div class=\"ti\">¡OT COMPLETADA!</div><div class=\"who\">"+esc(a.tec)+"</div>"
@@ -284,46 +285,66 @@ function procesarCola(){
   }
 }
 
-// ═════════ FIREBASE EN VIVO ═════════
-let _offT=null;
-function conexion(ok){
-  if(!ok){ if(!_offT) _offT=setTimeout(function(){ _offT=null; pintarCx(false); },15000); return; }
-  clearTimeout(_offT); _offT=null; pintarCx(true);
-}
+// ═════════ LECTURA DE DATOS (cada N segundos) ═════════
+let ultimoOk=0, timerCarga=null;
 function pintarCx(ok){
   document.getElementById("dot").className=ok?"ok":"";
   document.getElementById("syncTx").textContent=ok?"En vivo":"Sin conexión — mostrando últimos datos";
 }
-REF_ESTADO.onSnapshot({includeMetadataChanges:true},function(s){
-  conexion(!s.metadata.fromCache);
-  if(!s.exists) return;
-  ESTADO=s.data(); construir();
-},function(e){ document.getElementById("err").textContent="⚠ "+e.message; });
-
-REF_CONFIG.onSnapshot({includeMetadataChanges:true},function(s){
-  conexion(!s.metadata.fromCache);
-  CFG=Object.assign({},CONFIG_DEF,s.exists?s.data():{}); VOL=CFG.volumen/10; construir();
-});
-
-REF_EVENTOS.onSnapshot({includeMetadataChanges:true},function(s){
-  conexion(!s.metadata.fromCache);
-  if(s.metadata.hasPendingWrites===false&&s.metadata.fromCache&&!s.exists) return;
-  const d=s.exists?s.data():{}, lim=Date.now()-H24;
-  EV_NUEVAS=d.nuevas||[];
+function err(t){ document.getElementById("err").textContent=t||""; }
+function tms(x){ const d=x?new Date(x):null; return d&&!isNaN(d)?d.getTime():0; }
+function lunes(){ const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.getTime(); }
+function aCfg(c){
+  const o=Object.assign({},CONFIG_DEF);
+  Object.keys(c||{}).forEach(function(k0){
+    const k=k0.charAt(0).toLowerCase()+k0.slice(1); if(!(k in CONFIG_DEF)) return;
+    const d=CONFIG_DEF[k], v=c[k0];
+    if(Array.isArray(d)) o[k]=String(v||"").split(",").map(x=>x.trim()).filter(Boolean);
+    else if(typeof d==="boolean") o[k]=["SI","SÍ","TRUE","1"].indexOf(String(v).trim().toUpperCase())>=0;
+    else if(v!==""&&v!=null&&!isNaN(+v)) o[k]=+v;
+  });
+  return o;
+}
+function procesar(d,quieto){
+  CFG=aCfg(d.config); VOL=CFG.volumen/10; TECS=d.tecnicos||[];
+  const orders=(d.abiertos||[]).map(t=>({id:t.id,activo:t.equipo,desc:t.desc,tec:t.tecnico||"Sin asignar",depto:t.area,
+    fecha:t.creado,urg:t.prioridad==="Urgente",asig:tms(t.asignado),creado:tms(t.creado)}));
+  ESTADO={orders:orders,completadas:{}};
+  EV_NUEVAS=orders.filter(o=>o.asig&&o.tec!=="Sin asignar").map(o=>({id:o.id,tec:o.tec,activo:o.activo,depto:o.depto,urg:o.urg,tipo:"nueva",ts:o.asig,d:dias(o.fecha)}));
+  const cerr=(d.cerrados||[]).map(c=>({id:c.id,tec:c.tecnico,activo:c.equipo,depto:c.area,ts:tms(c.cerrado)}));
+  const lu=lunes(); SEMANA=cerr.filter(c=>c.ts>=lu);
+  if(quieto){ construir(); return; }
+  // Alertas: solo lo ocurrido después de abrir el monitor
+  if(!lastSeen) lastSeen=tms(d.ahora)||Date.now();
   let max=lastSeen;
+  if(CFG.alertaTicket) orders.filter(o=>o.tec==="Sin asignar"&&o.creado>lastSeen).forEach(o=>cola.push({tipo:"ticket",o:o}));
   if(CFG.alertaNueva){
-    const grupos={};
-    (d.nuevas||[]).filter(n=>n.ts>lastSeen&&!oculto(n.tec)).forEach(n=>{ (grupos[n.tec]=grupos[n.tec]||[]).push(n); });
-    Object.keys(grupos).forEach(t=>cola.push({tipo:"nueva",tec:t,items:grupos[t]}));
+    const g={};
+    EV_NUEVAS.filter(n=>n.ts>lastSeen&&!oculto(n.tec)).forEach(n=>{ (g[n.tec]=g[n.tec]||[]).push(n); });
+    Object.keys(g).forEach(t=>cola.push({tipo:"nueva",tec:t,items:g[t]}));
   }
-  if(CFG.alertaListo) (d.listos||[]).filter(n=>n.ts>lastSeen&&!oculto(n.tec)).sort((a,b)=>a.ts-b.ts).forEach(n=>cola.push(Object.assign({tipo:"listo"},n)));
-  (d.nuevas||[]).concat(d.listos||[]).forEach(n=>{ if(n.ts>max) max=n.ts; });
+  if(CFG.alertaListo) cerr.filter(c=>c.ts>lastSeen&&c.tec&&!oculto(c.tec)).sort((a,b)=>a.ts-b.ts).forEach(c=>cola.push(Object.assign({tipo:"listo"},c)));
+  orders.forEach(o=>{ max=Math.max(max,o.creado,o.asig); }); cerr.forEach(c=>{ max=Math.max(max,c.ts); });
   lastSeen=max; try{ localStorage.setItem("mon_lastSeen",String(max)); }catch(_){}
   construir();
-});
-
-function lunes(){ const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.getTime(); }
-COL_HIST.where("completadoTs",">=",lunes()).onSnapshot(function(s){ SEMANA=s.docs.map(x=>x.data()); construir(); },function(){});
+}
+async function cargar(){
+  clearTimeout(timerCarga);
+  try{
+    if(!CLAVE) throw new Error("Falta la clave del monitor en el link (&k=...)");
+    const r=await fetch(API+"?monitor=1&k="+encodeURIComponent(CLAVE)+"&t="+Date.now());
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error==="clave"?"Clave del monitor incorrecta":d.error);
+    procesar(d); ultimoOk=Date.now(); pintarCx(true); err("");
+    try{ localStorage.setItem("mon_cache",JSON.stringify(d)); }catch(_){}
+  }catch(e){
+    if(!ESTADO){ try{ const c=JSON.parse(localStorage.getItem("mon_cache")); if(c) procesar(c,true); }catch(_){} }
+    if(Date.now()-ultimoOk>60000) pintarCx(false);
+    err("⚠ "+e.message);
+  }
+  timerCarga=setTimeout(cargar,Math.max(15,CFG.refresco||30)*1000);
+}
+cargar();
 
 // ═════════ RELOJ Y ROTACIÓN ═════════
 setInterval(function(){
